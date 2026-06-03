@@ -1,0 +1,1913 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rede de Co-Citação · Raça e Racismo no Brasil</title>
+<meta name="description" content="Rede de co-citação bibliométrica sobre raça e racismo no Brasil — Web of Science 2000–2026">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Space Grotesk',sans-serif;background:#03030a;color:#e8e8f0}
+#bg-canvas{position:fixed;inset:0;pointer-events:none;z-index:0}
+#app{position:relative;z-index:1;display:flex;width:100%;height:100%}
+
+/* ── Panel ── */
+#panel{position:fixed;left:0;top:0;width:240px;height:100vh;background:rgba(7,7,18,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;z-index:20;transition:transform .35s cubic-bezier(.4,0,.2,1);overflow:visible}
+#panel-hover-zone{position:fixed;left:0;top:50%;transform:translateY(-50%);width:22px;height:56px;background:rgba(7,7,18,0.97);border:1px solid rgba(255,255,255,0.07);border-left:none;border-radius:0 10px 10px 0;z-index:19;display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,0.45);font-size:14px;transition:color .2s,background .2s,opacity .25s}
+#panel-hover-zone:hover{color:#fff;background:rgba(14,14,36,0.99)}
+#panel-hover-zone.hidden{opacity:0;pointer-events:none}
+#panel.collapsed{transform:translateX(-240px)}
+#panel.collapsed #panel-toggle{opacity:0;pointer-events:none}
+#panel-toggle{position:absolute;right:-28px;top:50%;transform:translateY(-50%);width:28px;height:56px;background:rgba(7,7,18,0.97);border:1px solid rgba(255,255,255,0.07);border-left:none;border-radius:0 10px 10px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.45);font-size:13px;transition:color .2s,background .2s;z-index:11;outline:none}
+#panel-toggle:hover{color:#fff;background:rgba(14,14,36,0.99)}
+#panel-toggle .arrow{display:inline-block;transition:transform .35s}
+#panel.collapsed #panel-toggle .arrow{transform:rotate(180deg)}
+.panel-inner{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px 20px 16px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent}
+.panel-inner::-webkit-scrollbar{width:4px}
+.panel-inner::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+.eyebrow{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:8px}
+.panel-title{font-size:19px;font-weight:700;line-height:1.25;color:#f0f0ff;margin-bottom:4px}
+.panel-title em{font-style:normal;display:block;font-size:11px;font-weight:400;color:rgba(255,255,255,0.38);margin-top:6px;font-family:'Space Mono',monospace}
+.search-wrap{position:relative;margin:18px 0 0}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.3);font-size:15px;pointer-events:none;line-height:1}
+#search-input{width:100%;padding:9px 12px 9px 34px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e8e8f0;font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;transition:border-color .2s,background .2s}
+#search-input::placeholder{color:rgba(255,255,255,0.25)}
+#search-input:focus{border-color:rgba(255,255,255,0.25);background:rgba(255,255,255,0.08)}
+#search-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:rgba(12,12,28,0.98);border:1px solid rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;z-index:100;display:none;box-shadow:0 8px 32px rgba(0,0,0,0.6)}
+#search-dropdown.open{display:block}
+.search-item{padding:9px 14px;font-size:12px;cursor:pointer;color:rgba(255,255,255,0.7);transition:background .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-item:hover{background:rgba(255,255,255,0.08);color:#fff}
+.search-empty{padding:9px 14px;font-size:12px;color:rgba(255,255,255,0.3);font-style:italic}
+#node-card{margin-top:16px;display:none;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px 14px 12px}
+.node-card-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.node-card-name{font-size:13px;font-weight:600;line-height:1.35;color:#f0f0ff;margin-bottom:10px}
+.node-card-stats{display:flex;gap:16px;margin-bottom:12px}
+.stat-item{display:flex;flex-direction:column;gap:2px}
+.stat-val{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:#f0f0ff}
+.stat-lbl{font-size:9px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.08em}
+.neighbors-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,0.3);margin-bottom:6px;font-family:'Space Mono',monospace}
+.neighbor-chip{display:inline-block;margin:2px 3px 2px 0;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);font-size:10px;color:rgba(255,255,255,0.6);cursor:pointer;transition:background .15s}
+.neighbor-chip:hover{background:rgba(255,255,255,0.13);color:#fff}
+.papers-section{margin-top:12px}
+.papers-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,0.3);margin-bottom:7px;font-family:'Space Mono',monospace}
+.paper-item{padding:8px 10px;border-radius:7px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);margin-bottom:5px;transition:background .15s}
+.paper-item:hover{background:rgba(255,255,255,0.08)}
+.paper-meta{font-size:10px;color:rgba(255,255,255,0.55);line-height:1.4;margin-bottom:4px}
+.paper-meta strong{color:rgba(255,255,255,0.85);font-weight:600}
+.paper-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.paper-count{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.28)}
+.paper-doi{font-size:9px;padding:2px 7px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);text-decoration:none;transition:all .15s;white-space:nowrap}
+.paper-doi:hover{border-color:rgba(255,255,255,0.4);color:#fff;background:rgba(255,255,255,0.07)}
+.papers-empty{font-size:10px;color:rgba(255,255,255,0.25);font-style:italic;padding:4px 0}
+.divider{height:1px;background:rgba(255,255,255,0.06);margin:18px 0}
+.legend-title{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,0.3);font-family:'Space Mono',monospace;margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;cursor:pointer;margin-bottom:2px;transition:background .15s}
+.legend-item:hover{background:rgba(255,255,255,0.05)}
+.legend-item.active{background:rgba(255,255,255,0.08)}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.legend-name{font-size:11px;color:rgba(255,255,255,0.7);flex:1;line-height:1.3}
+.legend-count{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.35);flex-shrink:0}
+/* ── Cluster stats ── */
+#cluster-stats{margin-top:12px}
+.cs-block{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px;padding:11px 13px;margin-bottom:8px}
+.cs-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.cs-row:last-child{margin-bottom:0}
+.cs-lbl{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.28);text-transform:uppercase;letter-spacing:.08em}
+.cs-val{font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,0.7);font-weight:700}
+.cs-top-label{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.28);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.cs-author{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.cs-author:last-child{border-bottom:none}
+.cs-rank{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.22);width:12px;flex-shrink:0}
+.cs-name{font-size:11px;color:rgba(255,255,255,0.72);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-cit{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.35);flex-shrink:0}
+
+.sobre-block{margin-top:4px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:9px}
+.sobre-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+.sobre-label{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:.1em}
+.sobre-value{font-size:11px;color:rgba(255,255,255,0.65);text-align:right;max-width:150px;line-height:1.4}
+.sobre-row:last-child{margin-bottom:0}
+.stats-footer{padding:12px 20px 14px;border-top:1px solid rgba(255,255,255,0.06);font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.25);flex-shrink:0;line-height:1.7}
+
+/* ── Painel direito (textos) ── */
+#right-panel{position:absolute;right:0;top:0;width:300px;height:100%;background:rgba(7,7,18,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-left:1px solid rgba(255,255,255,0.07);z-index:10;overflow-y:auto;overflow-x:hidden;transform:translateX(100%);transition:transform .38s cubic-bezier(.4,0,.2,1);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent;display:flex;flex-direction:column}
+#right-panel.open{transform:translateX(0)}
+#right-panel::-webkit-scrollbar{width:3px}
+#right-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:2px}
+.rp-inner{padding:22px 20px 32px;flex:1}
+.rp-close{position:sticky;top:0;display:flex;justify-content:flex-end;padding:14px 14px 0;background:rgba(7,7,18,0.97);z-index:2}
+.rp-close-btn{width:28px;height:28px;border:1px solid rgba(255,255,255,0.1);border-radius:50%;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.45);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
+.rp-close-btn:hover{background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.25)}
+.rp-eyebrow{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-bottom:6px}
+.rp-author{font-size:20px;font-weight:700;color:#f0f0ff;line-height:1.2;margin-bottom:6px}
+.rp-cluster-tag{display:inline-block;padding:3px 9px;border-radius:5px;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.rp-stat{font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,0.35);margin-bottom:18px}
+.rp-divider{height:1px;background:rgba(255,255,255,0.06);margin:0 0 16px}
+.rp-section-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:12px}
+.rp-paper{padding:11px 13px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);margin-bottom:8px;transition:background .15s}
+.rp-paper:hover{background:rgba(255,255,255,0.08)}
+.rp-paper-journal{font-size:11px;font-weight:600;color:rgba(255,255,255,0.82);line-height:1.35;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.rp-paper-source{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;margin-top:2px}
+.rp-paper-journal--source{font-style:italic;color:rgba(255,255,255,0.55)}
+.rp-paper-year{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:8px}
+.rp-paper-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rp-paper-count{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.25)}
+.rp-doi-btn{font-size:9px;font-weight:600;letter-spacing:.06em;padding:3px 9px;border-radius:5px;text-decoration:none;transition:all .15s;white-space:nowrap}
+.rp-doi-btn.has-doi{background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.7)}
+.rp-doi-btn.has-doi:hover{background:rgba(255,255,255,0.17);color:#fff}
+.rp-doi-btn.no-doi{color:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.07);cursor:default}
+.rp-doi-btn.book-badge{color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.1);cursor:default;font-style:italic}
+.rp-more{font-size:10px;color:rgba(255,255,255,0.25);text-align:center;padding:6px 0;font-family:'Space Mono',monospace}
+.rp-empty{font-size:11px;color:rgba(255,255,255,0.28);font-style:italic;text-align:center;padding:24px 0}
+
+/* ── Canvas ── */
+#canvas-area{position:fixed;left:0;top:0;width:100vw;height:100vh;overflow:hidden;background:radial-gradient(ellipse at 58% 48%,#08081e 0%,#03030a 68%)}
+#zoom-group{will-change:transform}
+#nodes-layer .node-g{will-change:opacity}
+#edges-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;will-change:contents}
+#viz-svg{position:relative;z-index:1;width:100%;height:100%;cursor:grab;display:block}
+#viz-svg:active{cursor:grabbing}
+
+/* ── Buttons ── */
+#fixed-buttons{position:absolute;bottom:28px;right:28px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;z-index:20}
+.fixed-btn{padding:9px 16px;background:rgba(14,14,30,0.92);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:rgba(255,255,255,0.7);font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:500;cursor:pointer;backdrop-filter:blur(10px);transition:all .2s;white-space:nowrap}
+.fixed-btn:hover{background:rgba(24,24,50,0.98);color:#fff;border-color:rgba(255,255,255,0.25)}
+#btn-reset{display:none}
+
+/* ── Hint ── */
+#hint{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:7px 18px;background:rgba(10,10,24,0.85);border:1px solid rgba(255,255,255,0.08);border-radius:20px;font-size:11px;color:rgba(255,255,255,0.35);pointer-events:none;white-space:nowrap;opacity:0;transition:opacity .6s;z-index:5;font-family:'Space Mono',monospace}
+#hint.visible{opacity:1}
+
+/* ── Tooltip ── */
+#tooltip{position:fixed;z-index:200;pointer-events:none;background:rgba(8,8,22,0.95);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px 14px;font-size:12px;color:rgba(255,255,255,0.85);max-width:240px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,0.5);opacity:0;transition:opacity .15s;backdrop-filter:blur(10px)}
+#tooltip.visible{opacity:1}
+.tt-name{font-weight:600;color:#fff;margin-bottom:2px;font-size:13px}
+.tt-cluster{font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.08em}
+.tt-stats{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.38);margin-top:4px;display:flex;gap:14px}
+.tt-nb-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,0.22);margin-top:9px;margin-bottom:4px;font-family:'Space Mono',monospace;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px}
+.tt-nb-item{display:flex;align-items:center;gap:7px;padding:2px 0}
+.tt-nb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.tt-nb-name{font-size:11px;color:rgba(255,255,255,0.68);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tt-nb-w{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.28);flex-shrink:0}
+/* ── Card flutuante (modo apresentação) ── */
+#present-card{position:absolute;bottom:72px;left:20px;z-index:20;background:rgba(7,7,20,0.95);border:1px solid rgba(255,255,255,0.11);border-radius:12px;padding:16px 18px;width:310px;display:none;backdrop-filter:blur(20px);box-shadow:0 8px 36px rgba(0,0,0,0.65)}
+body.present-mode #present-card.visible{display:block}
+#pc-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+#pc-name{font-size:17px;font-weight:700;color:#f0f0ff;margin-bottom:3px;line-height:1.2}
+#pc-fullname{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.32);margin-bottom:11px;letter-spacing:.03em;line-height:1.4}
+#pc-stat-row{display:flex;gap:18px;margin-bottom:13px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.07)}
+.pc-stat-item{display:flex;flex-direction:column;gap:2px}
+.pc-stat-val{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;color:#f0f0ff}
+.pc-stat-lbl{font-size:9px;color:rgba(255,255,255,0.32);text-transform:uppercase;letter-spacing:.08em}
+.pc-nb-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,0.28);margin-bottom:7px;font-family:'Space Mono',monospace}
+#pc-neighbors{display:flex;flex-wrap:wrap;gap:4px}
+.pc-chip{display:inline-block;padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);font-size:10px;color:rgba(255,255,255,0.65);cursor:pointer;transition:background .15s,color .15s}
+.pc-chip:hover{background:rgba(255,255,255,0.14);color:#fff}
+/* ── Botão centralizar ── */
+#btn-center{display:flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;font-size:17px;border-radius:50%}
+#btn-center:hover{transform:rotate(20deg);transition:transform .25s}
+#right-panel.open ~ #fixed-buttons{opacity:0;pointer-events:none;transition:opacity .2s}
+/* ── Modo apresentação ── */
+#btn-present{display:flex;align-items:center;gap:7px}
+body.present-mode #panel{transform:translateX(-240px)}
+body.present-mode #panel-toggle{opacity:0;pointer-events:none}
+body.present-mode #right-panel:not(.open){transform:translateX(100%)}
+body.present-mode #fixed-buttons{bottom:20px;right:20px}
+body.present-mode #btn-present-label::before{content:'✕  sair'}
+#btn-present-label::before{content:'⛶  apresentar'}
+/* ── Hover na legenda ── */
+.legend-item.preview{background:rgba(255,255,255,0.04)}
+
+/* ── Link "saiba mais" ── */
+.saiba-mais{display:flex;align-items:center;gap:8px;margin-top:14px;padding:9px 11px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);text-decoration:none;color:rgba(255,255,255,0.55);font-size:11px;font-family:'Space Grotesk',sans-serif;transition:background .2s,border-color .2s,color .2s;cursor:pointer}
+.saiba-mais:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.18);color:#f0f0ff}
+.saiba-mais-icon{font-style:italic;font-family:Georgia,serif;font-size:13px;width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;padding-top:1px}
+.saiba-mais-text{flex:1;line-height:1.3}
+.saiba-mais-arrow{font-size:13px;opacity:.45;transition:opacity .2s,transform .2s}
+.saiba-mais:hover .saiba-mais-arrow{opacity:.8;transform:translateX(3px)}
+
+/* ── Splash ── */
+#load-screen{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;background:radial-gradient(ellipse at 55% 45%,#0a0a22 0%,#03030a 70%)}
+.splash-eyebrow{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,0.22);margin-bottom:18px}
+.splash-title{font-size:clamp(26px,4vw,46px);font-weight:700;text-align:center;line-height:1.18;color:#f0f0ff;margin-bottom:10px;letter-spacing:-.01em}
+.splash-title span{background:linear-gradient(135deg,#7b6fff,#40c4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.splash-sub{font-size:13px;color:rgba(255,255,255,0.32);margin-bottom:52px;font-family:'Space Mono',monospace;letter-spacing:.05em}
+.splash-stats{display:flex;gap:40px;margin-bottom:48px}
+.splash-stat{display:flex;flex-direction:column;align-items:center;gap:4px}
+.splash-stat-num{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:#f0f0ff}
+.splash-stat-lbl{font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:.12em}
+.splash-divider{width:1px;background:rgba(255,255,255,0.08);align-self:stretch}
+.splash-loading{display:flex;flex-direction:column;align-items:center;gap:12px}
+.splash-bar-wrap{width:240px;height:2px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden}
+.splash-bar{height:100%;width:0%;background:linear-gradient(90deg,#7b6fff,#40c4ff);border-radius:2px;transition:width .4s ease;animation:bar-pulse 2s ease-in-out infinite}
+@keyframes bar-pulse{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes hub-pulse{0%{transform:scale(1);opacity:0.45}100%{transform:scale(2.8);opacity:0}}
+.pulse-ring{transform-box:fill-box;transform-origin:center;pointer-events:none;fill:none;stroke-width:1.5}
+.splash-loading-text{font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:.1em}
+.splash-upload{display:none;flex-direction:column;align-items:center;gap:12px;margin-top:8px}
+.drop-zone{width:320px;height:130px;border:1.5px dashed rgba(255,255,255,0.16);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:border-color .2s,background .2s;background:rgba(255,255,255,0.02)}
+.drop-zone:hover,.drop-zone.drag-over{border-color:rgba(123,111,255,0.55);background:rgba(123,111,255,0.05)}
+.drop-icon{font-size:26px;opacity:.38;user-select:none}
+.drop-label{font-size:12px;color:rgba(255,255,255,0.4);text-align:center;line-height:1.5}
+.drop-label span{color:#7b6fff;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+#file-input{display:none}
+#loading-overlay{position:fixed;inset:0;z-index:9500;background:#03030a;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px}
+.spinner{width:36px;height:36px;border:2px solid rgba(255,255,255,0.07);border-top-color:#7b6fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,0.3);letter-spacing:.1em}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div id="load-screen">
+  <div class="splash-eyebrow">Bibliometria · Ciências Sociais · Brasil</div>
+  <div class="splash-title">Rede de <span>Co-Citação</span><br>Raça e Racismo no Brasil</div>
+  <div class="splash-sub">Web of Science · 4.591 artigos analisados</div>
+  <div class="splash-stats">
+    <div class="splash-stat">
+      <div class="splash-stat-num">248</div>
+      <div class="splash-stat-lbl">Autores</div>
+    </div>
+    <div class="splash-divider"></div>
+    <div class="splash-stat">
+      <div class="splash-stat-num">3871</div>
+      <div class="splash-stat-lbl">Co-citações</div>
+    </div>
+    <div class="splash-divider"></div>
+    <div class="splash-stat">
+      <div class="splash-stat-num">4</div>
+      <div class="splash-stat-lbl">Comunidades</div>
+    </div>
+  </div>
+  <div class="splash-loading" id="splash-loading">
+    <div class="splash-bar-wrap"><div class="splash-bar" id="splash-bar"></div></div>
+    <div class="splash-loading-text" id="splash-loading-text">Carregando rede…</div>
+  </div>
+  <div class="splash-upload" id="splash-upload">
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">✦</div>
+      <div class="drop-label">
+        Arraste <strong>rede_WoS_racismo_teste5.gexf</strong> aqui<br>
+        ou <span id="browse-link">escolha o arquivo</span>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept=".gexf,.xml">
+  </div>
+</div>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Construindo rede…</div>
+</div>
+
+<div id="panel-hover-zone">&#8250;</div>
+<div id="app" style="display:none">
+  <div id="panel">
+    <button id="panel-toggle" title="Recolher painel">
+      <span class="arrow">&#8249;</span>
+    </button>
+    <div class="panel-inner">
+      <div class="eyebrow">Rede de Co-Citação</div>
+      <h1 class="panel-title">
+        Quem explica o<br>racismo no Brasil?
+        <em>DARA · 2000–2026</em>
+      </h1>
+
+      <div class="search-wrap">
+        <span class="search-icon">&#9906;</span>
+        <input type="text" id="search-input" placeholder="Buscar autor…" autocomplete="off">
+        <div id="search-dropdown"></div>
+      </div>
+
+      <div id="node-card">
+        <div class="node-card-tag" id="card-tag"></div>
+        <div class="node-card-name" id="card-name"></div>
+        <div class="node-card-stats">
+          <div class="stat-item">
+            <div class="stat-val" id="card-degree">0</div>
+            <div class="stat-lbl">Conexões</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val" id="card-pct">0%</div>
+            <div class="stat-lbl">da rede</div>
+          </div>
+        </div>
+        <div class="neighbors-label">Principais co-citações</div>
+        <div id="card-neighbors"></div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="legend-title" style="display:flex;justify-content:space-between;align-items:baseline">
+        <span>Comunidades Temáticas</span>
+        <span style="font-size:8px;opacity:.4;letter-spacing:.06em">aut.</span>
+      </div>
+      <div id="cluster-legend"></div>
+      <div id="cluster-stats" style="display:none">
+        <div id="cluster-stats-inner"></div>
+      </div>
+
+      <a href="#" class="saiba-mais">
+        <span class="saiba-mais-icon">i</span>
+        <span class="saiba-mais-text">Saiba mais sobre esta visualização</span>
+        <span class="saiba-mais-arrow">→</span>
+      </a>
+
+    </div>
+
+    <div class="stats-footer" id="stats-footer">
+      — autores · — conexões<br>
+      <span style="font-size:9px;opacity:.6">Arraste · Zoom · Clique para explorar</span>
+    </div>
+  </div>
+
+  <div id="canvas-area">
+    <canvas id="edges-canvas"></canvas>
+    <svg id="viz-svg">
+      <defs>
+        <!-- Glow suave: nós tier 1–2 -->
+        <filter id="node-glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="node-glow-hub" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g id="zoom-group">
+        <g id="hulls-layer" style="display:none"></g>
+        <g id="edges-layer"></g>
+        <g id="nodes-layer"></g>
+        <g id="labels-layer"></g>
+        <g id="cluster-labels-layer"></g>
+        <g id="ripples-layer"></g>
+      </g>
+    </svg>
+
+    <div id="tooltip">
+      <div class="tt-name" id="tt-name"></div>
+      <div class="tt-cluster" id="tt-cluster"></div>
+      <div class="tt-stats" id="tt-stats"></div>
+      <div id="tt-neighbors"></div>
+    </div>
+
+    <!-- Painel direito: textos no corpus -->
+    <div id="right-panel">
+      <div class="rp-close"><button class="rp-close-btn" id="rp-close-btn">&#x2715;</button></div>
+      <div class="rp-inner">
+        <div class="rp-eyebrow">Autor selecionado</div>
+        <div class="rp-author" id="rp-author"></div>
+        <div class="rp-cluster-tag" id="rp-cluster-tag"></div>
+        <div class="rp-stat" id="rp-stat"></div>
+        <div class="rp-divider"></div>
+        <div class="rp-section-label">Textos no corpus</div>
+        <div id="rp-papers"></div>
+      </div>
+    </div>
+
+    <div id="present-card">
+      <div id="pc-tag"></div>
+      <div id="pc-name"></div>
+      <div id="pc-fullname"></div>
+      <div id="pc-stat-row">
+        <div class="pc-stat-item">
+          <div class="pc-stat-val" id="pc-degree">0</div>
+          <div class="pc-stat-lbl">Conexões</div>
+        </div>
+        <div class="pc-stat-item">
+          <div class="pc-stat-val" id="pc-cit">0</div>
+          <div class="pc-stat-lbl">Citações</div>
+        </div>
+        <div class="pc-stat-item">
+          <div class="pc-stat-val" id="pc-pct">0%</div>
+          <div class="pc-stat-lbl">da rede</div>
+        </div>
+      </div>
+      <div class="pc-nb-label">Principais co-citações</div>
+      <div id="pc-neighbors"></div>
+    </div>
+
+    <div id="fixed-buttons">
+      <button class="fixed-btn" id="btn-present"><span id="btn-present-label"></span></button>
+      <button class="fixed-btn" id="btn-reset">&#8634; visão geral</button>
+      <button class="fixed-btn" id="btn-center" title="Centralizar visão">&#8982;</button>
+    </div>
+
+    <div id="hint">scroll · arraste · clique para explorar</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════
+// Clusters do Gephi (modularity_class → nome e cor)
+const CLUSTER_MAP = {
+  '1': { name: 'Grupo 1', color: '#C43D32' }, // vermelho — 82 autores
+  '2': { name: 'Grupo 4', color: '#B8C4C6' }, // cinza    — 44 autores
+  '3': { name: 'Grupo 3', color: '#6CCDD4' }, // ciano    — 53 autores
+  '4': { name: 'Grupo 2', color: '#D4B800' }, // amarelo  — 60 autores
+};
+// Override manual: força cluster de nós específicos (label → modularity_class)
+const NODE_CLUSTER_OVERRIDE = {
+  'mccallum, c':     '4',  // cinza → amarelo
+  'figueiredo, a':   '4',  // cinza → amarelo
+  'lima, m':         '4',  // cinza → amarelo
+  'petruccelli, jl': '4',  // cinza → amarelo
+  'osorio, rg':      '4',  // cinza → amarelo
+  'daflon, vt':      '4',  // cinza → amarelo
+  'heringer, r':     '4',  // cinza → amarelo
+  'santos, jaf':     '4',  // cinza → amarelo
+  'silvério, v':     '1',  // cinza → vermelho
+  'theodoro, m':     '1',  // cinza → vermelho
+};
+// Clusters excluídos da visualização
+const FULL_NAME_MAP = {"collins, ph": "Patr\u00edcia Hill Collins", "stopa, sr": "Sheila Rizzato Stopa", "szwarcwald, cl": "C\u00e9lia Landmann Szwarcwald", "almeida, s": "Silvio Almeida", "azvedo, cmm": "C\u00e9lia Maria M. de Azevedo", "bethell, l": "Leslie Bethell", "hooks, b": "bell hooks", "hartman, s": "Saidiya Hartman", "nascimento, a": "Abdias do Nascimento", "agamben, g": "Giorgio Agamben", "butler, j": "Judith Butler", "du bois, web": "W.E.B. Du Bois", "foucault, m": "Michel Foucault", "mbembe, a": "Achille Mbembe", "parker, r": "Richard Parker", "faerstein, e": "Eduardo Faerstein", "crenshaw, k": "Kimberl\u00e9 W. Crenshaw", "fraser, n": "Nancy Fraser", "gonzalez, l": "L\u00e9lia Gonzalez", "hall, s": "Stuart Hall", "haraway, d": "Donna Haraway", "harding, s": "Sandra Harding", "malta, dc": "D\u00e9borah Carvalho Malta", "zaluar, a": "Alba Zaluar", "braun, v": "Virginia Braun", "leal, mdc": "Maria do Carmo Leal", "bourdieu, p": "Pierre Bourdieu", "diniz, d": "Debora Diniz", "magno, l": "Lucas Magno", "lima-costa, mf": "Maria Fernanda Lima-Costa", "appadurai, a": "Arjun Appadurai", "fanon, f": "Frantz Fanon", "kilomba, g": "Grada Kilomba", "moreira, aj": "Adilson Moreira", "kim, hj": "Hyune-ju Kim", "ames, b": "Barry Ames", "bailey, sr": "Stanley R. Bailey", "bueno, ns": "Natalia S. Bueno", "htun, m": "Mala Htun", "barros, ajd": "Aluisio Jaridm Dornellas de Barros", "antunes, jlf": "Jos\u00e9 Leopoldo Antunes", "janusz, a": "Andrew Janusz", "aquino, eml": "Estela M. L. Aquino", "samuels, d": "David C. Samuels", "paim, j": "Jairnilson Silva Paim", "victora, cg": "C\u00e9sar G. Victora", "alves, ja": "Jaime Amparo Alves", "leite, ib": "Ilka Boaventura Leite", "santos, jaf": "Jos\u00e9 Alcides Figueiredo Santos", "castro, mc": "Marcia C. Castro", "marteleto, lj": "Let\u00edcia J. Marteleto", "chiavegatto, adp": "Alexandre Dias Porto Chiavegatto", "anderson, b": "Benedict Anderson", "domingues, rmsm": "Rosa Maria Soares Domingues", "lesser, j": "Jeffrey Lesser", "robinson, cj": "Cedric J. Robinson", "telles, e": "Edward Telles", "twine, fw": "France Winddance Twine", "weinstein, b": "Barbara Weinstein", "bento, c": "Cida Bento", "costa, s": "S\u00e9rgio Costa", "hirata, h": "Helena Hirata", "maldonado-torres, n": "Nelson Maldonado-Torres", "mignolo, w": "Walter D. Mignolo", "pinho, pd": "Patricia de Santana Pinho", "quijano, a": "An\u00edbal Quijano", "schucman, lv": "Lia Vainer Schucman", "schwarcz, lm": "Lilia Moritz Schwarcz", "baqui, p": "Pedro Baqui", "hallal, pc": "Pedro Curi Hallal", "akotirene, c": "Carla Akotirene", "domingues, p": "Petr\u00f4nio Domingues", "ribeiro, d": "Darcy Ribeiro", "ribeiro, dt": "Djamila T. Ribeiro", "werneck, j": "Jurema Werneck", "bernardino-costa, j": "Joaze Bernardino-Costa", "bertrand, m": "Marianne Bertrand", "cunha, e": "Euclides da Cunha", "francis-tan, a": "Andrew Francis-Tan", "heringer, r": "Rosana Heringer", "goes, ef": "Emanuelle Freitas G\u00f3es", "guimaraes, as": "Ant\u00f4nio S\u00e9rgio Alfredo Guimar\u00e3es", "williams, dr": "David R. Williams", "brah, a": "Avtar Brah", "santos, m": "Milton Santos", "krieger, n": "Nancy Krieger", "muniz, jo": "Jeronimo Oliveira Muniz", "santos, rv": "Ricardo Ventura Santos", "barber, s": "Sharrelle Barber", "gravlee, cc": "Clarence C. Gravlee", "osorio, rg": "Rafael Guerreiro Osorio", "freire, p": "Paulo Freire", "santos, bs": "Boaventura de Sousa Santos", "bailey, zd": "Zinzi D. Bailey", "cerqueira, d": "Daniel Cerqueira", "jones, cp": "Camara Phyllis Jones", "lotufo, pa": "Paulo A. Lotufo", "candido, a": "Antonio Candido", "chaui, m": "Marilena Chau\u00ed", "deleuze, g": "Gilles Deleuze", "fernandes, f": "Florestan Fernandes", "freyre, g": "Gilberto Freyre", "moura, c": "Cl\u00f3vis Moura", "munanga, k": "Kabengele Munanga", "nabuco, j": "Joaquim Nabuco", "omi, m": "Michael Omi", "ortiz, r": "Renato Ortiz", "ramos, a": "Arthur Ramos", "said, e": "Edward W. Said", "wade, p": "Peter Wade", "hunter, w": "Wendy Hunter", "benjamin, w": "Walter Benjamin", "carneiro, s": "Sueli Carneiro", "davis, a": "Angela Davis", "souza, j": "Jess\u00e9 Souza", "monteiro, ca": "Carlos Augusto Monteiro", "fry, p": "Peter Fry", "lovell, pa": "Peggy A. Lovell", "nobles, m": "Melissa Nobles", "torche, f": "Florencia Torche", "gilroy, p": "Paul Gilroy", "hasenbalg, ca": "Carlos Alfredo Hasenbalg", "romero, s": "Silvio Romero", "schwarz, r": "Roberto Schwarz", "grinsztejn, b": "Beatriz Grinsztejn", "hone, t": "Thomas Hone", "silva, gm": "Graziella Moraes Silva", "fausto, b": "Boris Fausto", "seyferth, g": "Giralda Seyferth", "gomes, r": "Romeu Gomes", "loveman, m": "Mara Loveman", "roth, wd": "Wendy D. Roth", "evaristo, c": "Concei\u00e7\u00e3o Evaristo", "brown, w": "Wendy Brown", "marx, k": "Karl Marx", "tilly, c": "Charles Tilly", "bastos, fi": "Francisco Inacio Bastos", "daflon, vt": "Ver\u00f4nica Toste Daflon", "barata, rb": "Rita Barradas Barata", "andrews, gr": "George Reid Andrews", "schmidt, mi": "Mar\u00eda In\u00eas Schmidt", "dos santos, sa": "Sales Augusto dos Santos", "constante, hm": "Helena Mendes Constante", "guerreiro ramos, a": "Alberto Guerreiro Ramos", "ribeiro, cac": "Carlos Antonio Costa Ribeiro", "ayres, jrcm": "Jos\u00e9 Ricardo de Carvalho Ayres", "fischer, b": "Brodwyn Fischer", "pena, sdj": "S\u00e9rgio Danilo Pena", "minayo, mcs": "Maria Cec\u00edlia Minayo", "alencastro, lf": "Luiz Felipe de Alencastro", "silv\u00e9rio, v": "Valter Silv\u00e9rio", "gomes, f": "Fl\u00e1vio dos Santos Gomes", "feres j\u00fanior, j": "Jo\u00e3o Feres J\u00fanior", "nina rodrigues, r": "Raymundo Nina Rodrigues", "peres, ma": "Marco Aurelio Peres", "perry, kky": "Keisha-Khan Y. Perry", "lugones, m": "Mar\u00eda Lugones", "holanda, sb": "S\u00e9rgio Buarque de Holanda", "chor, d": "Dora Chor", "santos, jt": "Joc\u00e9lio Teles dos Santos", "moutinho, l": "Laura Moutinho", "flauzina, alp": "Ana Luiza Pinheiro Flauzina", "petruccelli, jl": "Jos\u00e9 Luis Petruccelli", "nogueira, o": "Oracy Nogueira", "roth-gordon, j": "Jennifer Roth-Gordon", "giddens, a": "Anthony Giddens", "caldeira, tpr": "Teresa Pires do Rio Carvalho", "gomes, nl": "Nilma Lino Gomes", "barreto, ml": "Maur\u00edcio L. Barreto", "holston, j": "James Holston", "ahmed, s": "Sara Ahmed", "bonilla-silva, e": "Eduardo Bonilla-Silva", "santos, is": "Isabel Soares Santos", "bardin, l": "Laurence Bardin", "theodoro, m": "M\u00e1rio Theodoro", "grosfoguel, r": "Ram\u00f3n Grosfoguel", "nascimento, el": "Elisa Larkin Nascimento", "hofbauer, a": "Andreas Hofbauer", "smith, ca": "Christen A. Smith", "dressler, ww": "William W. Dressler", "boccolini, cs": "Cristiano Siqueira Boccolini", "figueiredo, a": "\u00c2ngela Figueiredo", "harvey, d": "David Harvey", "pierson, d": "Donald Pierson", "schwartzman, lf": "Lu\u00edsa Farah Schwartzman", "wacquant, l": "Lo\u00efc Wacquant", "wagley, c": "Charles Wagley", "wood, ch": "Charles Wood", "davila, j": "Jerry D\u00e1vila", "french, jh": "Jan Hoffman French", "sansone, l": "Livio Sansone", "nascimento, b": "Beatriz Nascimento", "sodre, m": "Muniz Sodr\u00e9", "weber, m": "Max Weber", "teixeira, jc": "J. A. Teixeira", "bastide, r": "Roger Bastide", "lorde, a": "Audre Lorde", "freud, s": "Sigmund Freud", "meneghel, sn": "Stela Nazareth Meneghel", "alberto, pl": "Paulina L. Alberto", "macinko, j": "James Macinko", "wehby, gl": "George L. Wehby", "castells, m": "Manuel Castells", "alonso, a": "Angela Alonso", "burdick, j": "John Burdick", "tajfel, h": "Henri Tajfel", "oliveira, f": "Francisco de Oliveira", "stepan, n": "Nancy Stepan", "lopes, f": "Fernanda Lopes", "mariano, r": "Ricardo Mariano", "adorno, s": "Sergio Adorno", "sen, a": "Amartya Sen", "skidmore, t": "Thomas Skidmore", "mainwaring, s": "Scott Mainwaring", "marmot, m": "Michael Marmot", "lefebvre, h": "Henri Lefebvre", "escobar, a": "Arturo Escobar", "mckittrick, k": "Katherine McKittrick", "massey, ds": "Douglas S. Massey", "connell, r": "Raewyn Connell", "butler, k": "Kim Butler", "azevedo, cmm": "Celia Maria Marinho de Azevedo", "latour, b": "Bruno Latour", "sevcenko, n": "Nicolau Sevcenko", "monk, ep": "Ellis P. Monk", "suarez-kurtz, g": "Guilherme Suarez-Kurtz", "garcia, lp": "Leila Posenato Garcia", "ratts, a": "Alex Ratts", "cano, i": "Ignacio Cano", "rothgordon, j": "Jennifer Roth-Gordon", "gomes, mb": "Marcia Barbieri Gomes", "spivak, gc": "Gayatri Chakravorty Spivak", "bastos, jl": "Jo\u00e3o Luiz Bastos", "bakhtin, m": "Mikhail Bakhtin", "boschiero, mn": "Matheus Negri Boschiero", "goffman, e": "Erving Goffman", "bledsoe, a": "Adam Bledsoe", "batista, le": "Luis Eduardo Batista", "correa, m": "Mariza Corr\u00eaa", "vargas, jhc": "Jo\u00e3o H\u00e9lio Costa Vargas", "pennycook, a": "Alastair Pennycook", "saperstein, a": "Aliya Saperstein", "needell, jd": "Jeffrey Needell", "caldwell, k": "Kia Lilly Caldwell", "edmonds, a": "Alexander Edmonds", "hordge-freeman, e": "Elizabeth Hordge-freeman", "lacan, j": "Jacques Lacan", "martins-melo, fr": "Francisco R. Martins-Melo", "schwartzman, s": "Simon Schwartzman", "mccann, b": "Bryan Mccann", "chalhoub, s": "Sidney Chalhoub", "graham, r": "Richard Graham", "levi-strauss, c": "Claude Levi-Strauss", "campos, la": "Luiz Augusto Campos", "paixao, m": "Marcelo Paix\u00e3o", "araujo, em": "Edna Maria Araujo", "rasella, d": "Davide Rasella", "matijasevich, a": "Al\u00edcia Matijasevich", "mccallum, c": "Cecilia McCallum", "daniel, gr": "G. Reginald Daniel", "parra, fc": "Flavia C. Parra", "rios, f": "Flavia Rios", "hanchard, mg": "Michael Hanchard", "mitchell-walthour, g": "Gladys Mitchell-Walthour", "williams, r": "Raymond Williams", "carvalho, jm": "Jos\u00e9 Murilo de Carvalho", "goldstein, dm": "Donna M. Goldstein", "arendt, h": "Hannah Arendt", "neri, m": "Marcelo Neri", "abreu, m": "Martha Abreu", "hale, cr": "Charles Hale", "morrison, t": "Toni Morrison", "piscitelli, a": "Adriana Piscitelli", "lamont, m": "Michelle Lamont", "paradies, y": "Yin Paradies", "kraay, h": "Hendrik Kraay", "schwartz, sb": "Stuart B. Schwartz", "paschel, ts": "Tianna S. Paschel", "miskolci, r": "Richard Miskolci", "travassos, c": "Cl\u00e1udia Travassos", "wimmer, a": "Andreas Wimmer", "amado, j": "Jorge Amado", "goldberg, dt": "David Theo Goldberg", "marx, a": "Anthony Marx", "portes, a": "Alejandro Portes", "reis, jj": "Jo\u00e3o Jos\u00e9 Reis", "elias, n": "Norbert Elias", "harris, m": "Marvin Harris", "hooker, j": "Juliet Hooker", "scott, j": "Joan Scott", "ianni, o": "Octavio Ianni", "barros, fc": "Fernando C. Barros", "maio, mc": "Marcos Chor Maio", "sheriff, re": "Robin E. Sheriff", "dussel, e": "Enrique Dussel", "matory, jl": "J. Lorand Matory", "cardoso, am": "Andrey Moreira Cardoso", "scheper-hughes, n": "Nancy Scheper-hughes", "segato, rl": "Rita Laura Segato", "cardoso, fh": "Fernando Henrique Cardoso", "walsh, c": "Catherine Walsh", "bauman, z": "Zygmunt Bauman", "grinberg, k": "Keila Grinberg", "henriques, r": "Ricardo Henriques", "mattos, h": "Hebe Mattos", "arruti, jm": "Jos\u00e9 Maur\u00edcio Arruti", "brubaker, r": "Rogers Brubaker", "maggie, y": "Yvonne Maggie", "salzano, fm": "Francisco M. Salzano", "hobsbawm, e": "Eric Hobsbawm", "winant, h": "Howard Winant", "barth, f": "Fredrik Barth", "kalmijn, m": "Matthijs Kalmijn", "ramos, s": "Silvia Ramos", "silva, df": "Denise Ferreira da Silva", "reichenheim, me": "Michael Eduardo Reichenheim", "agier, m": "Michel Agier", "carneiro, e": "Edison Carneiro", "bhabha, h": "Homi K. Bhabha", "damatta, r": "Roberto DaMatta", "prandi, r": "Reginaldo Prandi", "pereira, aa": "Amilcar Ara\u00fajo Pereira", "landes, r": "Ruth Landes", "waiselfisz, j": "J\u00falio Jacobo Waiselfisz", "bobbio, n": "Norberto Bobbio", "vianna, h": "Hermano Vianna", "lobato, m": "Monteiro Lobato", "rosemberg, f": "F\u00falvia Rosemberg", "silva, nv": "Nelson do Valle Silva", "trouillot, mr": "Michel-Rolph Trouillot", "bairros, l": "Luiza Bairros", "stam, r": "Robert Stam", "banton, m": "Michael Banton", "roquette-pinto, e": "Edgar Roquette-Pinto", "kalckmann, s": "Suzana Kalckmann", "degler, cn": "Carl N. Degler", "kehl, r": "Renato Kehl", "riserio, a": "Ant\u00f4nio Ris\u00e9rio", "tannenbaum, f": "Frank Tannenbaum", "oaxaca, r": "Ronald L. Oaxaca", "sovik, l": "Liv Sovik"};
+const EXCLUDED_CLUSTERS = new Set(['5']);
+const FALLBACK_COLORS = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#cc5de8','#f06595'];
+
+function clusterColor(mc) {
+  if (CLUSTER_MAP[mc]) return CLUSTER_MAP[mc].color;
+  const idx = Object.keys(CLUSTER_MAP).length + (parseInt(mc) % FALLBACK_COLORS.length);
+  return FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+}
+function clusterName(mc) {
+  return CLUSTER_MAP[mc] ? CLUSTER_MAP[mc].name : 'Cluster ' + mc;
+}
+
+const WEIGHT_THRESHOLD = 10;  // limiar visual (arestas fortes, bem visíveis)
+const MIN_EDGE_WEIGHT   = 1;   // inclui todas as arestas (conectividade completa)
+const TOP_LABELS = 20;
+const GEXF_CANDIDATES = ['rede_WoS_racismo_teste5.gexf', 'rede_WoS_racismo_teste4.gexf', 'rede_WoS_racismo_teste3.gexf', 'rede_WoS_racismo_teste2.gexf', 'rede_WoS_racismo_teste.gexf', 'rede_raca.gexf', 'network.gexf'];
+
+// ═══════════════════════════════════════════════════════
+// STAR FIELD
+// ═══════════════════════════════════════════════════════
+(function () {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+  function init() {
+    stars = [];
+    for (let i = 0; i < 260; i++) {
+      stars.push({ x: Math.random(), y: Math.random(), r: Math.random() * 0.8, a: 0.03 + Math.random() * 0.3 });
+    }
+  }
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    stars.forEach(s => {
+      ctx.beginPath();
+      ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + s.a + ')';
+      ctx.fill();
+    });
+  }
+  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; draw(); }
+  init(); resize();
+  window.addEventListener('resize', resize);
+})();
+// Atualiza cache de dimensões ao redimensionar a janela
+
+
+// ═══════════════════════════════════════════════════════
+// GEXF PARSER
+// ═══════════════════════════════════════════════════════
+function parseGEXF(xmlText) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(xmlText, 'text/xml');
+
+  // Localiza atributos: prefere cluster VOSviewer sobre modularity_class Gephi
+  let modAttrId = null, citationsAttrId = null;
+  xml.querySelectorAll('attributes attribute').forEach(a => {
+    const id    = a.getAttribute('id') || '';
+    const title = (a.getAttribute('title') || '').toLowerCase();
+    if (id === 'cluster' || title === 'cluster') modAttrId = id;          // VOSviewer cluster (prioridade)
+    if (!modAttrId && (title.includes('modularity') || title.includes('community'))) modAttrId = id;
+    if (title.includes('citations')) citationsAttrId = id;
+  });
+
+  const nodes = [];
+  xml.querySelectorAll('graph > nodes > node').forEach(n => {
+    const id = n.getAttribute('id');
+    const label = n.getAttribute('label') || id;
+    const colorEl = n.querySelector('color');
+    let color = null;
+    if (colorEl) {
+      color = 'rgb(' + (colorEl.getAttribute('r')||180) + ',' + (colorEl.getAttribute('g')||180) + ',' + (colorEl.getAttribute('b')||180) + ')';
+    }
+    const posEl = n.querySelector('position');
+    let px = null, py = null;
+    if (posEl) { px = parseFloat(posEl.getAttribute('x')||0); py = parseFloat(posEl.getAttribute('y')||0); }
+
+    let modClass = null, citations = 0;
+    n.querySelectorAll('attvalue').forEach(av => {
+      const forKey = av.getAttribute('for') || av.getAttribute('id') || '';
+      if (modAttrId && forKey === modAttrId) modClass = av.getAttribute('value');
+      if (citationsAttrId && forKey === citationsAttrId) citations = parseFloat(av.getAttribute('value') || 0);
+    });
+    nodes.push({ id, label, color, px, py, modClass: modClass !== null ? String(modClass) : '0', citations });
+  });
+
+  const edges = [];
+  xml.querySelectorAll('graph > edges > edge').forEach(e => {
+    edges.push({ source: e.getAttribute('source'), target: e.getAttribute('target'), weight: parseFloat(e.getAttribute('weight')||1) });
+  });
+
+  return { nodes, edges };
+}
+
+// ═══════════════════════════════════════════════════════
+// GRAPH PROCESSING
+// ═══════════════════════════════════════════════════════
+function processGraph(rawNodes, rawEdges) {
+  const filteredEdges = rawEdges.filter(e => e.weight >= MIN_EDGE_WEIGHT);
+  const nodeMap = new Map(rawNodes.map(n => [n.id, n]));
+  const connectedIds = new Set();
+  filteredEdges.forEach(e => {
+    if (nodeMap.has(e.source) && nodeMap.has(e.target)) { connectedIds.add(e.source); connectedIds.add(e.target); }
+  });
+  const filteredNodes = rawNodes.filter(n => connectedIds.has(n.id));
+
+  // Componente gigante
+  const parent = new Map(filteredNodes.map(n => [n.id, n.id]));
+  function find(x) { if (parent.get(x) !== x) parent.set(x, find(parent.get(x))); return parent.get(x); }
+  function union(a, b) { parent.set(find(a), find(b)); }
+  filteredEdges.forEach(e => { if (connectedIds.has(e.source) && connectedIds.has(e.target)) union(e.source, e.target); });
+
+  const compSize = new Map();
+  filteredNodes.forEach(n => { const root = find(n.id); compSize.set(root, (compSize.get(root)||0)+1); });
+  let giantRoot = null, giantSize = 0;
+  compSize.forEach((sz, root) => { if (sz > giantSize) { giantSize = sz; giantRoot = root; } });
+
+  const giantNodes = filteredNodes.filter(n => find(n.id) === giantRoot);
+  const giantIds = new Set(giantNodes.map(n => n.id));
+  const giantEdges = filteredEdges.filter(e => giantIds.has(e.source) && giantIds.has(e.target));
+
+  const degMap = new Map(giantNodes.map(n => [n.id, 0]));
+  giantEdges.forEach(e => { degMap.set(e.source, (degMap.get(e.source)||0)+1); degMap.set(e.target, (degMap.get(e.target)||0)+1); });
+
+  // Remove clusters excluídos
+  const coreNodes = giantNodes.filter(n => !EXCLUDED_CLUSTERS.has(String(n.modClass)));
+  const coreIds = new Set(coreNodes.map(n => n.id));
+  const coreEdges = giantEdges.filter(e => coreIds.has(e.source) && coreIds.has(e.target));
+  const coreDegMap = new Map(coreNodes.map(n => [n.id, 0]));
+  coreEdges.forEach(e => { coreDegMap.set(e.source, (coreDegMap.get(e.source)||0)+1); coreDegMap.set(e.target, (coreDegMap.get(e.target)||0)+1); });
+  const maxDeg = Math.max(...degMap.values(), 1);
+
+  // Reatribuir nós de clusters pequenos ao cluster nomeado mais conectado
+  const MIN_CLUSTER_SIZE = 5;
+  const clCount = new Map();
+  coreNodes.forEach(n => clCount.set(n.modClass, (clCount.get(n.modClass)||0)+1));
+
+  // Mapa de vizinhos
+  const nbMap = new Map(coreNodes.map(n => [n.id, new Set()]));
+  coreEdges.forEach(e => { nbMap.get(e.source)?.add(e.target); nbMap.get(e.target)?.add(e.source); });
+
+  // Nós em clusters pequenos não-nomeados
+  const pendingIds = new Set();
+  coreNodes.forEach(n => {
+    if (!CLUSTER_MAP[n.modClass] && (clCount.get(n.modClass)||0) < MIN_CLUSTER_SIZE) pendingIds.add(n.id);
+  });
+
+  // Mapa mutável de modClass
+  const mcMap = new Map(coreNodes.map(n => [n.id, n.modClass]));
+
+  // Até 8 passagens: propaga atribuições a partir dos clusters nomeados vizinhos
+  for (let pass = 0; pass < 8; pass++) {
+    let changed = false;
+    pendingIds.forEach(id => {
+      const votes = new Map();
+      (nbMap.get(id)||new Set()).forEach(nbId => {
+        const mc = mcMap.get(nbId);
+        if (CLUSTER_MAP[mc]) votes.set(mc, (votes.get(mc)||0)+1);
+      });
+      if (votes.size > 0) {
+        let best = null, bestN = 0;
+        votes.forEach((c,mc) => { if (c>bestN){bestN=c;best=mc;} });
+        mcMap.set(id, best);
+        pendingIds.delete(id);
+        changed = true;
+      }
+    });
+    if (!changed) break;
+  }
+
+  // Aplicar modClasses finais
+  coreNodes.forEach(n => { n.modClass = mcMap.get(n.id) || n.modClass; });
+
+  // Aplicar overrides manuais por label
+  coreNodes.forEach(n => {
+    const ov = NODE_CLUSTER_OVERRIDE[n.label];
+    if (ov) n.modClass = ov;
+  });
+
+  const maxCit = Math.max(...coreNodes.map(n => n.citations || 0), 1);
+  coreNodes.forEach(n => {
+    n.degree = coreDegMap.get(n.id) || 0;
+    // Tamanho por citações totais (VOSviewer) — mais fiel à relevância no corpus
+    n.size = 5 + Math.pow((n.citations || 0) / maxCit, 0.65) * 24;
+    n.clusterColor = clusterColor(n.modClass);
+    n.clusterName  = clusterName(n.modClass);
+    if (!n.color) n.color = n.clusterColor;
+  });
+
+  console.log(`Grafo: ${coreNodes.length} nós, ${coreEdges.length} arestas`);
+  return { nodes: coreNodes, edges: coreEdges };
+}
+
+// ═══════════════════════════════════════════════════════
+// VIZ STATE
+// ═══════════════════════════════════════════════════════
+let simulation = null, zoomInstance = null;
+let currentNodes = [], currentEdges = [], neighborMap = new Map(), nodeById = new Map();
+let highlightNode = null, highlightCluster = null;
+let _currentZoomLevel = -1;   // zoom semântico
+let nodeEdgeEls = new Map();  // nodeId → edge[] — precomputado para hover rápido
+let _prevShownEdgeEls = [];   // (legado — não usado no canvas)
+let _zoomRafId = null;        // RAF throttle para applySemanticZoom
+let _drawRafId  = null;       // RAF throttle para drawEdgesOnCanvas (1 draw/frame máximo)
+let _clusterLabelDebounceId = null; // debounce para updateClusterLabelPositions
+let _isZooming = false;       // true durante zoom ativo — reduz arestas desenhadas
+let _zoomEndId  = null;       // timeout para detectar fim do zoom
+let _bfDisabled = false;      // backdrop-filter desativado durante zoom
+let _labelDebounceId = null;  // debounce para updateLabelViewport (collision detection)
+let _cachedClusterMap = null; // cache do mapa de clusters
+let _canvasW = 0, _canvasH = 0; // dimensões cacheadas
+let _simDone = false;         // flag: simulação terminou
+let _hoverEdgeSet = null;     // Set<edge> do nó em hover (para canvas)
+let _clusterNodeIds = null;   // Set<nodeId> do cluster selecionado (para canvas)
+let referencesDB = {};
+// authorNamesDB: inicializado com FULL_NAME_MAP embutido no HTML;
+// fetch abaixo sobrescreve se disponível via servidor.
+let authorNamesDB = (typeof FULL_NAME_MAP !== 'undefined') ? FULL_NAME_MAP : {};
+
+// Normaliza label: remove acentos, lowercase
+function normalizeAuthorKey(label) {
+  return label.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+// Lookup tolerante: tenta label com acento primeiro, depois sem
+function lookupFullName(label) {
+  return authorNamesDB[label] || authorNamesDB[normalizeAuthorKey(label)] || '';
+}
+
+// Carrega ficheiros JSON em background (nao bloqueia a visualizacao)
+(async function loadReferences() {
+  if (location.protocol === 'file:') return; // file:// — fetch bloqueado pelo browser
+  try {
+    const resp = await fetch('./references.json');
+    if (resp.ok) { referencesDB = await resp.json(); }
+  } catch(_) { /* sem references.json */ }
+  try {
+    const resp2 = await fetch('./author_names.json');
+    if (resp2.ok) { authorNamesDB = await resp2.json(); }
+  } catch(_) { /* sem author_names.json */ }
+})();
+
+function buildNeighborMap(nodes, edges) {
+  const map = new Map(nodes.map(n => [n.id, new Set()]));
+  edges.forEach(e => { if (map.has(e.source)) map.get(e.source).add(e.target); if (map.has(e.target)) map.get(e.target).add(e.source); });
+  return map;
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? { r:parseInt(m[1],16), g:parseInt(m[2],16), b:parseInt(m[3],16) } : { r:120, g:120, b:180 };
+}
+
+function edgeColorStr(e, nodeById) {
+  const src = nodeById.get(typeof e.source==='object'?e.source.id:e.source);
+  const tgt = nodeById.get(typeof e.target==='object'?e.target.id:e.target);
+  if (src && tgt && src.modClass === tgt.modClass) {
+    const c = hexToRgb(src.clusterColor);
+    return 'rgb('+Math.round(c.r*.3+20)+','+Math.round(c.g*.3+20)+','+Math.round(c.b*.3+20)+')';
+  }
+  return '#1e1e30';
+}
+
+function isSameCluster(e, nodeById) {
+  const src = nodeById.get(typeof e.source==='object'?e.source.id:e.source);
+  const tgt = nodeById.get(typeof e.target==='object'?e.target.id:e.target);
+  return !!(src && tgt && src.modClass === tgt.modClass);
+}
+
+// ═══════════════════════════════════════════════════════
+// BUILD VISUALIZATION
+// ═══════════════════════════════════════════════════════
+function buildVisualization(graphData) {
+  const { nodes, edges } = graphData;
+  currentNodes = nodes; currentEdges = edges;
+  neighborMap = buildNeighborMap(nodes, edges);
+  nodeById = new Map(nodes.map(n => [n.id, n]));
+  const svg = d3.select('#viz-svg');
+  const canvasArea = document.getElementById('canvas-area');
+  _canvasW = canvasArea.clientWidth; _canvasH = canvasArea.clientHeight;
+  const W = _canvasW, H = _canvasH;
+
+  const validX = nodes.map(n=>n.px).filter(v=>v!==null&&!isNaN(v));
+  const validY = nodes.map(n=>n.py).filter(v=>v!==null&&!isNaN(v));
+  const hasPos = validX.length > 0 && validY.length > 0;
+  let scaleX, scaleY;
+  if (hasPos) {
+    scaleX = d3.scaleLinear().domain([d3.min(validX), d3.max(validX)]).range([W*.1, W*.9]);
+    scaleY = d3.scaleLinear().domain([d3.min(validY), d3.max(validY)]).range([H*.9, H*.1]);
+  }
+  // Posições GEXF → âncoras expandidas 35% para fora do centro.
+  // Preserva a topologia do Gephi mas afasta os clusters sobrepostos.
+  nodes.forEach(n => {
+    n.x = (hasPos&&n.px!==null&&!isNaN(n.px)) ? scaleX(n.px) : W/2+(Math.random()-.5)*W*.8;
+    n.y = (hasPos&&n.py!==null&&!isNaN(n.py)) ? scaleY(n.py) : H/2+(Math.random()-.5)*H*.8;
+    n.fx_anchor = W/2 + (n.x - W/2) * 1.35;
+    n.fy_anchor = H/2 + (n.y - H/2) * 1.35;
+  });
+
+  zoomInstance = d3.zoom()
+    .scaleExtent([0.08, 8])
+    // Scroll 1.6× mais rápido que o padrão D3 (confortável)
+    .wheelDelta(ev => -ev.deltaY * (ev.deltaMode === 1 ? 0.05 : ev.deltaMode ? 1 : 0.002) * 2.0)
+    .on('zoom', event => {
+      // 1. SVG transform: imediato (mantém nodes/hulls em sincronia visual)
+      d3.select('#zoom-group').attr('transform', event.transform);
+
+      // 2. Canvas: RAF-throttled — no máximo 1 draw por frame de animação
+      //    Durante zoom ativo: só arestas fortes (~400) em vez de 16k → muito mais fluido
+      _isZooming = true;
+      // Desativa backdrop-filter durante zoom: evita repaints caros do compositor
+      if (!_bfDisabled) {
+        _bfDisabled = true;
+        document.getElementById('panel').style.backdropFilter = 'none';
+        document.getElementById('panel').style.webkitBackdropFilter = 'none';
+        const rp = document.getElementById('right-panel');
+        if (rp) { rp.style.backdropFilter = 'none'; rp.style.webkitBackdropFilter = 'none'; }
+      }
+      clearTimeout(_zoomEndId);
+      _zoomEndId = setTimeout(() => {
+        _isZooming = false;
+        // Reativa backdrop-filter após parar de zoomar
+        if (_bfDisabled) {
+          _bfDisabled = false;
+          document.getElementById('panel').style.backdropFilter = '';
+          document.getElementById('panel').style.webkitBackdropFilter = '';
+          const rp = document.getElementById('right-panel');
+          if (rp) { rp.style.backdropFilter = ''; rp.style.webkitBackdropFilter = ''; }
+        }
+        drawEdgesOnCanvas(); // redraw completo ao parar
+      }, 60);
+
+      if (!_drawRafId) {
+        _drawRafId = requestAnimationFrame(() => {
+          drawEdgesOnCanvas();
+          _drawRafId = null;
+        });
+      }
+
+      // 3. Semantic zoom (mostra/oculta labels por tier): 1× por frame, early-exit se nível não mudou
+      if (_zoomRafId) cancelAnimationFrame(_zoomRafId);
+      _zoomRafId = requestAnimationFrame(() => {
+        applySemanticZoom(event.transform.k);
+        _zoomRafId = null;
+      });
+
+      // 4. Cluster labels: ancorados na borda do cluster, tamanho constante
+      clearTimeout(_clusterLabelDebounceId);
+      _clusterLabelDebounceId = setTimeout(() => updateClusterLabelPositions(currentNodes), 70);
+
+      // 5. Collision detection de labels de nós: após parar de zoomar
+      clearTimeout(_labelDebounceId);
+      _labelDebounceId = setTimeout(() => updateLabelViewport(event.transform), 90);
+    });
+  svg.call(zoomInstance).on('click', event => { if (!event.target.closest('.node-g')) resetHighlight(); });
+
+  // Arestas → canvas (não SVG). Guarda referência global para o renderer.
+  currentEdges = edges;
+  resizeEdgesCanvas();
+  drawEdgesOnCanvas();
+
+  // Pré-computa mapa nodeId → arestas adjacentes (O(grau) no hover, sem varrer tudo)
+  nodeEdgeEls = new Map();
+  edges.forEach(e => {
+    const sid = typeof e.source==='object' ? e.source.id : e.source;
+    const tid = typeof e.target==='object' ? e.target.id : e.target;
+    if (!nodeEdgeEls.has(sid)) nodeEdgeEls.set(sid, []);
+    if (!nodeEdgeEls.has(tid)) nodeEdgeEls.set(tid, []);
+    nodeEdgeEls.get(sid).push(e);
+    nodeEdgeEls.get(tid).push(e);
+  });
+
+  // ── Opacidade base + tiers — ANTES de criar nodeG ──
+  // Hubs: opacos | periféricos: quase invisíveis (névoa de fundo)
+  // Expoente 0.35 → curva mais agressiva: top autores quase 1.0, resto cai rápido
+  (function assignZoomTiers() {
+    const _maxDeg = d3.max(nodes, d => d.degree) || 1;
+    const byCluster = new Map();
+    nodes.forEach(n => { if (!byCluster.has(n.modClass)) byCluster.set(n.modClass,[]); byCluster.get(n.modClass).push(n); });
+    byCluster.forEach(cl => {
+      cl.sort((a,b) => b.degree - a.degree);
+      cl.forEach((n,i) => {
+        const p = i/cl.length;
+        n.zoomTier = p < 0.20 ? 0 : p < 0.50 ? 1 : 2;
+        // Piso 0.62 → periféricos bem visíveis; teto 0.96 → hubs em destaque
+        n.baseOpacity = 0.62 + Math.pow(n.degree / _maxDeg, 0.50) * 0.34;
+      });
+    });
+  })();
+
+  const nodeG = d3.select('#nodes-layer').selectAll('.node-g').data(nodes, d=>d.id).join('g')
+    .attr('class','node-g').attr('data-tier', d => d.zoomTier)
+    .style('opacity', d => d.baseOpacity)   // aplicado com baseOpacity já calculado
+    .style('cursor','pointer');
+
+  // Pulse ring: anel expansivo nos 6 autores mais citados
+  const topHubIds = new Set([...nodes].sort((a,b)=>(b.citations||0)-(a.citations||0)).slice(0,6).map(n=>n.id));
+  nodeG.filter(d=>topHubIds.has(d.id)).append('circle')
+    .attr('class','pulse-ring')
+    .attr('r', d=>d.size)
+    .attr('stroke', d=>d.clusterColor)
+    .style('animation', (d,i)=>'hub-pulse 3.5s ease-out '+(i*0.6)+'s infinite');
+
+  // Halo externo: maior e mais brilhante para hubs (tier 0)
+  nodeG.filter(d=>d.size>8).append('circle').attr('class','glow-bg')
+    .attr('r', d => d.zoomTier === 0 ? d.size * 1.25 : d.size * 1.15)
+    .attr('fill', d=>d.clusterColor)
+    .style('opacity', d => d.zoomTier === 0 ? 0.02 + (d.size-8)/21*0.015 : 0.01+(d.size-8)/21*0.015)
+    .style('filter','blur(2px)').style('pointer-events','none');
+
+  nodeG.append('circle').attr('class','node-circle')
+    .attr('r', d=>d.size).attr('fill', d=>d.clusterColor)
+    .attr('filter', d => d.zoomTier === 0 ? 'url(#node-glow)' : null)
+    .attr('stroke', d => d.clusterColor === '#B8C4C6' ? 'rgba(255,255,255,0.55)' : d.clusterColor)
+    .attr('stroke-width', d => d.clusterColor === '#B8C4C6' ? (d.zoomTier === 0 ? 2 : 1.5) : (d.zoomTier === 0 ? 1.8 : 1.2))
+    .attr('stroke-opacity', d => d.clusterColor === '#B8C4C6' ? 1 : (d.zoomTier === 0 ? 0.9 : 0.7));
+
+  nodeG
+    .on('mouseenter', (event,d) => { if (highlightNode&&highlightNode.id===d.id) return; showTooltip(event,d); if (!highlightNode) applyHover(d); })
+    .on('mousemove', event => positionTooltip(event))
+    .on('mouseleave', () => { hideTooltip(); clearHover(); })
+    .on('click', (event,d) => { event.stopPropagation(); selectNode(d); })
+    .call(d3.drag()
+      .on('start', (event,d) => { if (!event.active) simulation.alphaTarget(0.1).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (event,d) => { d.fx=event.x; d.fy=event.y; })
+      .on('end', (event,d) => { if (!event.active) simulation.alphaTarget(0).alpha(0.4).restart(); d.fx=null; d.fy=null; })
+    );
+
+  const topNodes = new Set([...nodes].sort((a,b)=>b.degree-a.degree).slice(0,TOP_LABELS).map(n=>n.id));
+  d3.select('#labels-layer').selectAll('.node-label').data(nodes, d=>d.id).join('text')
+    .attr('class','node-label').text(d=>d.label)
+    .attr('text-anchor','middle').attr('font-family',"'Space Grotesk', sans-serif")
+    // Tier 0: grande/bold/branco · Tier 1: médio/regular · Tier 2: pequeno/sutil
+    .attr('font-size', d => d.zoomTier === 0 ? '12px' : d.zoomTier === 1 ? '9.5px' : '8.5px')
+    .attr('font-weight', d => d.zoomTier === 0 ? '700' : '400')
+    .attr('fill', d => d.zoomTier === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(200,205,230,0.82)')
+    .attr('paint-order','stroke')
+    .attr('stroke','rgba(0,0,0,0.80)')
+    .attr('stroke-width', d => d.zoomTier === 0 ? '3px' : '2px')
+    .style('opacity', d => 0.45 + d.baseOpacity * 0.48)
+    .style('pointer-events','none').style('display', d=>topNodes.has(d.id)?null:'none');
+
+  renderClusterLabels(nodes);
+  renderHulls(nodes);
+
+  // ── Simulação leve: âncoras GEXF + só colisão ──
+  // O layout já vem do ForceAtlas2 (Gephi). A simulação apenas empurra nós
+  // sobrepostos para fora, sem distorcer a estrutura de clusters.
+  simulation = d3.forceSimulation(nodes)
+    .alphaDecay(0.055).velocityDecay(0.72).alphaMin(0.003)
+    // alphaDecay 0.055 → ~90 ticks (vs 246 antes) — converge 3× mais rápido
+    // velocityDecay 0.72 → mais amortecimento, menos oscilação
+
+    // ① Cada nó é puxado para a sua posição GEXF expandida
+    .force('anchorX', d3.forceX(d => d.fx_anchor).strength(0.25))
+    .force('anchorY', d3.forceY(d => d.fy_anchor).strength(0.25))
+
+    // ② Colisão com folga maior — afasta nós sobrepostos sem partir clusters
+    .force('collide', d3.forceCollide(d => d.size + 6).strength(0.80))
+
+    .on('tick', tick)
+    .on('end', () => {
+      _simDone = true; // para atualização de coordenadas de arestas no tick
+      drawEdgesOnCanvas();  // redraw final completo
+      updateHulls(nodes);
+      updateClusterLabelPositions(nodes);
+      const t = zoomInstance ? d3.zoomTransform(d3.select('#viz-svg').node()) : d3.zoomIdentity;
+      updateLabelViewport(t);
+    });
+
+  let _tick = 0;
+  function getNodeObj(ref) { return (ref&&typeof ref==='object') ? ref : (nodeById.get(ref)||{x:0,y:0}); }
+  function tick() {
+    _tick++;
+    // Nós e labels — sempre atualiza posição (leve: só move elementos SVG)
+    nodeG.attr('transform', d=>'translate('+d.x+','+d.y+')');
+    d3.select('#labels-layer').selectAll('.node-label').attr('x',d=>d.x).attr('y',d=>d.y-d.size-3);
+    // Canvas: redesenha arestas só a cada 4 ticks — é a operação mais pesada
+    if (_tick % 4 === 0) drawEdgesOnCanvas();
+    // Hulls: a cada 6 ticks (pesado)
+    if (_tick % 6 === 0) { updateHulls(nodes); updateClusterLabelPositions(nodes); }
+  }
+
+  buildLegend(nodes);
+  const visibleEdgeCount = edges.filter(e=>(e.weight||0) >= WEIGHT_THRESHOLD).length;
+  document.getElementById('stats-footer').innerHTML =
+    nodes.length+' autores · '+visibleEdgeCount+' co-citações<br>'+
+    '<span style="font-size:9px;opacity:.6">Arraste · Zoom · Clique para explorar</span>';
+  setTimeout(() => { const h=document.getElementById('hint'); h.classList.add('visible'); setTimeout(()=>h.classList.remove('visible'),4000); }, 1200);
+
+  // Aplica zoom semântico inicial (k=1 → tier 0+1 visíveis; tier 2 oculto até k≥1.6)
+  _currentZoomLevel = -1;
+  applySemanticZoom(1);
+}
+
+// ═══════════════════════════════════════════════════════
+// HULLS
+// ═══════════════════════════════════════════════════════
+function getClusterMap(nodes) {
+  // Cache: os nós são sempre os mesmos objetos (posições mudam in-place), não precisa recriar
+  if (_cachedClusterMap) return _cachedClusterMap;
+  const map = new Map();
+  nodes.forEach(n => { if (!map.has(n.modClass)) map.set(n.modClass,[]); map.get(n.modClass).push(n); });
+  _cachedClusterMap = map;
+  return map;
+}
+function expandHull(pts, cx, cy, amount) {
+  return pts.map(([x,y]) => { const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy)||1; return [x+(dx/d)*amount, y+(dy/d)*amount]; });
+}
+const lineGen = d3.line().curve(d3.curveCatmullRomClosed.alpha(0.5));
+
+function renderHulls(nodes) {
+  const clusterMap = getClusterMap(nodes);
+  const hullData = [];
+  clusterMap.forEach((clNodes,mc) => hullData.push({mc,clNodes}));
+  d3.select('#hulls-layer').selectAll('.hull-path').data(hullData, d=>d.mc).join('path').attr('class','hull-path')
+    .attr('fill', d=>clusterColor(d.mc)).attr('fill-opacity',0.03)
+    .attr('stroke', d=>clusterColor(d.mc)).attr('stroke-opacity',0.20).attr('stroke-width',1.8)
+    .attr('stroke-dasharray', null)
+    .style('pointer-events','none');
+  updateHulls(nodes);
+}
+// ═══════════════════════════════════════════════════════
+// CANVAS EDGE RENDERER
+// ═══════════════════════════════════════════════════════
+function drawEdgesOnCanvas() {
+  const canvas = document.getElementById('edges-canvas');
+  if (!canvas || !currentEdges.length || !nodeById) return;
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const transform = zoomInstance ? d3.zoomTransform(d3.select('#viz-svg').node()) : d3.zoomIdentity;
+  const k = transform.k, tx = transform.x, ty = transform.y;
+  const cw = canvas.width / dpr, ch = canvas.height / dpr;
+
+  ctx.save();
+  ctx.scale(dpr, dpr);
+
+  // Helper: resolve nó e coordenadas de tela; retorna null se fora do viewport
+  function edgeCoords(e) {
+    const src = typeof e.source==='object' ? e.source : nodeById.get(e.source);
+    const tgt = typeof e.target==='object' ? e.target : nodeById.get(e.target);
+    if (!src || !tgt) return null;
+    const x1=src.x*k+tx, y1=src.y*k+ty, x2=tgt.x*k+tx, y2=tgt.y*k+ty;
+    if (Math.min(x1,x2)>cw+20||Math.max(x1,x2)<-20||Math.min(y1,y2)>ch+20||Math.max(y1,y2)<-20) return null;
+    return {src, tgt, x1, y1, x2, y2};
+  }
+
+  // ── ESTADO HOVER ──────────────────────────────────────────
+  if (_hoverEdgeSet) {
+    // Batch 1: todas as arestas esmaecidas (1 stroke)
+    ctx.globalAlpha = 0.02; ctx.strokeStyle = '#888'; ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    currentEdges.forEach(e => {
+      if (_hoverEdgeSet.has(e)) return;
+      const c = edgeCoords(e); if (!c) return;
+      ctx.moveTo(c.x1, c.y1); ctx.lineTo(c.x2, c.y2);
+    });
+    ctx.stroke();
+    // Batch 2: arestas em destaque com gradiente (1 stroke por aresta — inevitável)
+    _hoverEdgeSet.forEach(e => {
+      const c = edgeCoords(e); if (!c) return;
+      const same = c.src.modClass === c.tgt.modClass;
+      const grad = ctx.createLinearGradient(c.x1, c.y1, c.x2, c.y2);
+      grad.addColorStop(0, c.src.clusterColor||'#888');
+      grad.addColorStop(1, c.tgt.clusterColor||'#888');
+      ctx.globalAlpha = same ? 0.65 : 0.38;
+      ctx.strokeStyle = grad; ctx.lineWidth = same ? 2.2 : 1.6;
+      ctx.beginPath(); ctx.moveTo(c.x1, c.y1); ctx.lineTo(c.x2, c.y2); ctx.stroke();
+    });
+    ctx.restore(); return;
+  }
+
+  // ── ESTADO CLUSTER ────────────────────────────────────────
+  if (_clusterNodeIds) {
+    ctx.globalAlpha = 0.20; ctx.strokeStyle = clusterColor(highlightCluster); ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    currentEdges.forEach(e => {
+      const c = edgeCoords(e); if (!c) return;
+      if (!_clusterNodeIds.has(c.src.id) || !_clusterNodeIds.has(c.tgt.id)) return;
+      ctx.moveTo(c.x1, c.y1); ctx.lineTo(c.x2, c.y2);
+    });
+    ctx.stroke();
+    ctx.restore(); return;
+  }
+
+  // ── ESTADO NORMAL ─────────────────────────────────────────
+  // Batch 1: arestas fracas — puladas durante zoom ativo para máxima fluidez
+  if (!_isZooming) {
+    ctx.globalAlpha = 0.05; ctx.strokeStyle = '#888888'; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    currentEdges.forEach(e => {
+      if ((e.weight||1) >= WEIGHT_THRESHOLD) return;
+      const c = edgeCoords(e); if (!c) return;
+      ctx.moveTo(c.x1, c.y1); ctx.lineTo(c.x2, c.y2);
+    });
+    ctx.stroke();
+  }
+
+  // Batch 2: arestas fortes — espessura e opacidade proporcionais ao peso
+  // Tier 1 (peso 10–24): fino  |  Tier 2 (25–59): médio  |  Tier 3 (≥60): grosso
+  const buckets = new Map();
+  currentEdges.forEach(e => {
+    if ((e.weight||1) < WEIGHT_THRESHOLD) return;
+    const c = edgeCoords(e); if (!c) return;
+    const same  = c.src.modClass === c.tgt.modClass;
+    const col   = same ? (c.src.clusterColor||'#888') : '#888888';
+    const w     = e.weight || 1;
+    const lw    = same
+      ? (w >= 60 ? 2.2 : w >= 25 ? 1.3 : 0.7)
+      : (w >= 60 ? 1.3 : w >= 25 ? 0.8 : 0.45);
+    const alpha = w >= 60 ? 0.20 : w >= 25 ? 0.13 : 0.09;
+    const key   = col + '|' + lw + '|' + alpha;
+    if (!buckets.has(key)) buckets.set(key, {col, lw, alpha, segs:[]});
+    buckets.get(key).segs.push(c.x1, c.y1, c.x2, c.y2);
+  });
+  buckets.forEach(({col, lw, alpha, segs}) => {
+    ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (let i=0; i<segs.length; i+=4) { ctx.moveTo(segs[i], segs[i+1]); ctx.lineTo(segs[i+2], segs[i+3]); }
+    ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+function resizeEdgesCanvas() {
+  const canvas = document.getElementById('edges-canvas');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const area = document.getElementById('canvas-area');
+  const w = area.clientWidth, h = area.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+}
+
+function updateHulls(nodes) {
+  const clusterMap = getClusterMap(nodes);
+  d3.select('#hulls-layer').selectAll('.hull-path').each(function(d) {
+    const clNodes = clusterMap.get(d.mc)||[];
+    const pts = clNodes.map(n=>[n.x,n.y]);
+    let pathD='';
+    if (pts.length===0) { pathD=''; }
+    else if (pts.length===1) { const [px,py]=pts[0],r=30; pathD='M'+px+','+(py-r)+' A'+r+','+r+',0,1,1,'+(px-0.01)+','+(py-r)+' Z'; }
+    else if (pts.length===2) {
+      const [ax,ay]=pts[0],[bx,by]=pts[1],len=Math.sqrt((bx-ax)**2+(by-ay)**2)||1;
+      const nx=-(by-ay)/len*28,ny=(bx-ax)/len*28;
+      pathD=lineGen([[ax+nx,ay+ny],[bx+nx,by+ny],[bx-nx,by-ny],[ax-nx,ay-ny]]);
+    } else {
+      const hull=d3.polygonHull(pts);
+      if (hull) { const cx=d3.mean(hull,p=>p[0]),cy=d3.mean(hull,p=>p[1]); pathD=lineGen(expandHull(hull,cx,cy,28)); }
+    }
+    d3.select(this).attr('d',pathD);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// CLUSTER LABELS
+// ═══════════════════════════════════════════════════════
+function clusterCentroid(clNodes) { return { x:d3.mean(clNodes,n=>n.x), y:d3.mean(clNodes,n=>n.y) }; }
+
+function renderClusterLabels(nodes) {
+  // Nomes dos clusters removidos da visualização
+  d3.select('#cluster-labels-layer').selectAll('*').remove();
+}
+
+function updateClusterLabelPositions(nodes) {
+  if (!nodes || !nodes.length) return;
+  const clusterMap = getClusterMap(nodes);
+  const allCx = [], allCy = [];
+  clusterMap.forEach(cn => { const c = clusterCentroid(cn); allCx.push(c.x); allCy.push(c.y); });
+  const gcx = d3.mean(allCx), gcy = d3.mean(allCy);
+
+  const k = (zoomInstance && d3.select('#viz-svg').node())
+    ? d3.zoomTransform(d3.select('#viz-svg').node()).k
+    : 1;
+
+  d3.select('#cluster-labels-layer').selectAll('.cluster-badge').each(function(d) {
+    const clNodes = clusterMap.get(d.mc);
+    if (!clNodes || !clNodes.length) return;
+    const c = clusterCentroid(clNodes);
+    const dx = c.x - gcx, dy = c.y - gcy, dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    let ux = dx/dist, uy = dy/dist;
+
+    // Override de direção por cluster
+    const BADGE_DIR_OVERRIDE = {
+      '2': { ux: -0.55, uy: -0.72 }
+    };
+    const ovr = BADGE_DIR_OVERRIDE[d.mc];
+    if (ovr) { ux = ovr.ux; uy = ovr.uy; }
+
+    // Posição na borda do cluster (percentil 75 do raio)
+    const dists = clNodes.map(n => Math.sqrt((n.x-c.x)**2 + (n.y-c.y)**2)).sort((a,b)=>a-b);
+    const hullRadius = dists[Math.floor(dists.length * 0.75)] || 60;
+    const pushDist = hullRadius + 24;
+    const bx = c.x + ux * pushDist;
+    const by = c.y + uy * pushDist;
+
+    // Counter-scale: mantém tamanho visual constante independente do zoom
+    d3.select(this).attr('transform', `translate(${bx},${by}) scale(${1/k})`);
+  });
+}
+// Mostra labels no viewport aplicando:
+//   1. Filtro de tier × zoom  (qual tier é elegível ao nível atual)
+//   2. Detecção de colisão greedy  (evita sobreposição de texto)
+// Labels são priorizados por tier e grau — os mais importantes sempre ganham espaço.
+function updateLabelViewport(transform) {
+  if (highlightNode) return;
+
+  // Modo cluster focado: atualiza labels do cluster respeitando zoom
+  if (highlightCluster) {
+    const clIds=new Set(currentNodes.filter(n=>n.modClass===highlightCluster).map(n=>n.id));
+    const k=transform.k;
+    d3.select('#labels-layer').selectAll('.node-label')
+      .style('display', d => {
+        if (!clIds.has(d.id)) return 'none';
+        if (k >= 1.8) return null;           // zoom detalhe: todos
+        if (d.zoomTier === 2) return k >= 1.0 ? null : 'none';
+        return null;                          // tier 0+1: sempre visíveis
+      })
+      .style('opacity', d => clIds.has(d.id) ? Math.max(0.75, 0.45 + d.baseOpacity * 0.48) : 0);
+    return;
+  }
+  const cw = _canvasW || document.getElementById('canvas-area').clientWidth;
+  const ch = _canvasH || document.getElementById('canvas-area').clientHeight;
+  const k  = transform.k;
+  const tx = transform.x, ty = transform.y;
+  const pad = 60;
+  const x0 = (-tx - pad) / k;
+  const x1 = (cw - tx + pad) / k;
+  const y0 = (-ty - pad) / k;
+  const y1 = (ch - ty + pad) / k;
+
+  const topSet = getTopNodes();
+
+  // ── 1. Candidatos: nós no viewport que passam no filtro de tier/zoom ──
+  const candidates = [];
+  currentNodes.forEach(d => {
+    if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1) return;
+    if (k >= 1.6) { candidates.push(d); return; }        // zoom próximo: todos
+    if (d.zoomTier === 2) return;                         // tier 2: só com zoom próximo
+    if (topSet.has(d.id) || d.zoomTier === 0) { candidates.push(d); return; }
+    if (k >= 1.0 && d.zoomTier === 1) { candidates.push(d); return; }
+  });
+
+  // ── 2. Ordena por importância (tier 0 → 1 → 2, depois por grau) ──
+  candidates.sort((a, b) => {
+    if (a.zoomTier !== b.zoomTier) return a.zoomTier - b.zoomTier;
+    return b.degree - a.degree;
+  });
+
+  // ── 3. Detecção de colisão greedy em espaço de tela (pixels) ──
+  // Bounding box: largura ∝ comprimento do label × fontSize; altura = fontSize + padding
+  // Coordenadas de tela: sx = dataX*k + tx   (label centralizado horizontalmente)
+  //                      sy = (dataY - node.size - 3)*k + ty   (label acima do nó)
+  const shown = new Set();
+  const placed = [];  // [{sx, sy, hw, hh}]
+
+  candidates.forEach(d => {
+    const isT0 = d.zoomTier === 0 || topSet.has(d.id);
+    const fontSize = isT0 ? 12 : (d.zoomTier === 1 ? 9.5 : 8.5);
+    const charW    = fontSize * 0.58;          // largura média por caractere
+    const hw       = d.label.length * charW / 2 + 5;   // meia-largura + padding
+    const hh       = fontSize / 2 + 4;                  // meia-altura + padding
+
+    const sx = d.x * k + tx;
+    const sy = (d.y - d.size - 3) * k + ty;
+
+    let collides = false;
+    for (const p of placed) {
+      if (Math.abs(sx - p.sx) < hw + p.hw && Math.abs(sy - p.sy) < hh + p.hh) {
+        collides = true; break;
+      }
+    }
+    if (!collides) { shown.add(d.id); placed.push({sx, sy, hw, hh}); }
+  });
+
+  // ── 4. Aplica display baseado no resultado da detecção ──
+  d3.select('#labels-layer').selectAll('.node-label').style('display', d => {
+    if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1) return 'none';
+    return shown.has(d.id) ? null : 'none';
+  });
+}
+
+function applySemanticZoom(k) {
+  // Labels de cluster: somem em zoom muito baixo ou muito alto
+  d3.select('#cluster-labels-layer')
+    .style('opacity', (k < 0.15 || k > 2.5) ? 0 : 1)
+    .style('transition', 'opacity 0.3s');
+
+  // Níveis relativos ao zoom inicial (k≈1):
+  // 0 = visão geral  (k<1.0) → top 20% por cluster
+  // 1 = médio        (1.0–1.6) → top 50% por cluster
+  // 2 = detalhe      (>1.6)  → todos os nós
+  const newLevel = k < 1.0 ? 0 : k < 1.6 ? 1 : 2;
+  if (newLevel === _currentZoomLevel) return; // só atualiza ao cruzar limiar
+  _currentZoomLevel = newLevel;
+
+  // Não interfere se hover ativo
+  if (highlightNode || highlightCluster) return;
+
+  // Nós: pointer-events habilitados conforme o nível de zoom atual
+  d3.select('#nodes-layer').selectAll('.node-g')
+    .style('pointer-events', d => d.zoomTier <= newLevel ? 'auto' : 'none');
+
+  // Labels são gerenciados por updateLabelViewport (chamado no evento de zoom)
+  // Aqui só dispara a atualização com o transform atual
+  const currentTransform = zoomInstance
+    ? d3.zoomTransform(d3.select('#viz-svg').node())
+    : d3.zoomIdentity;
+  updateLabelViewport(currentTransform);
+}
+
+// ═══════════════════════════════════════════════════════
+// LEGEND
+// ═══════════════════════════════════════════════════════
+function buildLegend(nodes) {
+  const clusterMap=getClusterMap(nodes);
+  const legendEl=document.getElementById('cluster-legend');
+  legendEl.innerHTML='';
+  const entries=[];
+  clusterMap.forEach((clNodes,mc) => {
+    if (!CLUSTER_MAP[mc]) return;
+    entries.push({mc, count:clNodes.length, color:clusterColor(mc), name:clusterName(mc)});
+  });
+  entries.sort((a,b) => b.count - a.count);
+  entries.forEach(e => {
+    const item=document.createElement('div');
+    item.className='legend-item'; item.dataset.mc=e.mc;
+    item.innerHTML='<div class="legend-dot" style="background:'+e.color+';box-shadow:0 0 5px '+e.color+'55"></div>'+
+      '<div class="legend-name">'+e.name+'</div><div class="legend-count">'+String(e.count).padStart(3,'0')+'</div>';
+    item.addEventListener('click', ()=>selectCluster(e.mc));
+    item.addEventListener('mouseenter', () => {
+      if (highlightCluster) return;
+      const clIds=new Set(currentNodes.filter(n=>n.modClass===e.mc).map(n=>n.id));
+      d3.select('#nodes-layer').selectAll('.node-g')
+        .style('opacity', n=>clIds.has(n.id)?1:0.12);
+      // Mostra hulls temporariamente no hover
+      d3.select('#hulls-layer').style('display', null);
+      d3.select('#hulls-layer').selectAll('.hull-path')
+        .attr('fill-opacity', h=>h.mc===e.mc?0.09:0.01)
+        .attr('stroke-opacity', h=>h.mc===e.mc?0.38:0.03);
+    });
+    item.addEventListener('mouseleave', () => {
+      if (highlightCluster) return;
+      d3.select('#nodes-layer').selectAll('.node-g').style('opacity', n=>n.baseOpacity);
+      // Oculta hulls ao sair
+      d3.select('#hulls-layer').style('display', 'none');
+    });
+    legendEl.appendChild(item);
+  });
+}
+
+function showClusterStats(mc) {
+  const clNodes = currentNodes.filter(n=>n.modClass===mc);
+  const clIds = new Set(clNodes.map(n=>n.id));
+  let internal=0, external=0;
+  currentEdges.forEach(e=>{
+    const sid=typeof e.source==='object'?e.source.id:e.source;
+    const tid=typeof e.target==='object'?e.target.id:e.target;
+    const si=clIds.has(sid), ti=clIds.has(tid);
+    if(si&&ti) internal++;
+    else if(si||ti) external++;
+  });
+  const top5=[...clNodes].sort((a,b)=>(b.citations||0)-(a.citations||0)).slice(0,5);
+  const color=clusterColor(mc);
+  let html=`<div class="cs-block">
+    <div class="cs-row"><span class="cs-lbl">Autores</span><span class="cs-val">${clNodes.length}</span></div>
+    <div class="cs-row"><span class="cs-lbl">Conexões internas</span><span class="cs-val">${internal}</span></div>
+    <div class="cs-row"><span class="cs-lbl">Conexões externas</span><span class="cs-val">${external}</span></div>
+  </div>
+  <div class="cs-top-label">Top por citações</div>
+  <div class="cs-block" style="padding:8px 13px">`;
+  top5.forEach((n,i)=>{
+    html+=`<div class="cs-author">
+      <span class="cs-rank">${i+1}</span>
+      <span class="cs-name" style="color:${color}">${n.label}</span>
+      <span class="cs-cit">${n.citations||0} cit.</span>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('cluster-stats-inner').innerHTML=html;
+  document.getElementById('cluster-stats').style.display='block';
+}
+
+// ═══════════════════════════════════════════════════════
+// HIGHLIGHT / SELECT
+// ═══════════════════════════════════════════════════════
+function getTopNodes() { return new Set([...currentNodes].sort((a,b)=>b.degree-a.degree).slice(0,TOP_LABELS).map(n=>n.id)); }
+
+function applyHover(d) {
+  const neighbors = neighborMap.get(d.id) || new Set();
+
+  // ── Usa mapa pré-computado: O(grau) em vez de O(5033) ──
+  const myEdges = nodeEdgeEls.get(d.id) || [];
+
+  // Pesos e top vizinhos
+  const edgeWeights = new Map();
+  myEdges.forEach(e => {
+    const sid = typeof e.source==='object' ? e.source.id : e.source;
+    const tid = typeof e.target==='object' ? e.target.id : e.target;
+    edgeWeights.set(sid === d.id ? tid : sid, e.weight || 1);
+  });
+  const TOP_NB = 30;
+  const topNeighbors = new Set(
+    [...neighbors].sort((a,b) => (edgeWeights.get(b)||0) - (edgeWeights.get(a)||0)).slice(0, TOP_NB)
+  );
+
+  // Opacidade dos nós: 3 níveis — selecionado / vizinhos fortes / resto esmaecido
+  // Se um cluster estiver ativo, nós externos ao cluster ficam no estado esmaecido do cluster (0.06)
+  const clusterActive = !!highlightCluster;
+  const clIds = clusterActive ? new Set(currentNodes.filter(n => n.modClass === highlightCluster).map(n => n.id)) : null;
+  d3.select('#nodes-layer').selectAll('.node-g').style('opacity', n => {
+    if (n.id === d.id) return 1;
+    if (clusterActive && !clIds.has(n.id)) return 0.06; // fora do cluster: mantém esmaecido
+    if (topNeighbors.has(n.id)) return 0.95;
+    if (neighbors.has(n.id)) return 0.50;
+    return clusterActive ? 0.12 : 0.04; // dentro do cluster mas sem conexão: ligeiramente visível
+  });
+
+  // Nó focado fica por cima dos vizinhos na renderização
+  d3.select('#nodes-layer').selectAll('.node-g')
+    .filter(n => n.id === d.id)
+    .raise();
+
+  // Labels: TODOS os vizinhos ganham label (não só top 30)
+  // Opacidade proporcional ao peso da conexão
+  d3.select('#labels-layer').selectAll('.node-label')
+    .style('opacity', n => {
+      if (n.id === d.id) return 1;
+      if (topNeighbors.has(n.id)) return 1;
+      if (neighbors.has(n.id)) return Math.max(0.5, n.baseOpacity);
+      return null;
+    })
+    .style('display', n => {
+      if (n.id === d.id || neighbors.has(n.id)) return null;
+      return 'none';
+    });
+
+  // Traz o label do nó focado para frente (último no DOM = renderizado por cima)
+  d3.select('#labels-layer').selectAll('.node-label')
+    .filter(n => n.id === d.id)
+    .raise();
+
+  // Canvas: marca arestas do nó e redesenha
+  _hoverEdgeSet = new Set(myEdges);
+  drawEdgesOnCanvas();
+}
+function clearHover() {
+  // Limpa estado de hover e redesenha canvas (restaura cluster ou global conforme estado)
+  _hoverEdgeSet = null;
+
+  if (highlightCluster) {
+    d3.select('#nodes-layer').selectAll('.node-g')
+      .style('opacity', n => _clusterNodeIds && _clusterNodeIds.has(n.id) ? 1 : 0.06);
+    d3.select('#labels-layer').selectAll('.node-label')
+      .style('display', d => _clusterNodeIds && _clusterNodeIds.has(d.id) ? null : 'none')
+      .style('opacity', d => _clusterNodeIds && _clusterNodeIds.has(d.id) ? Math.max(0.75, 0.45 + d.baseOpacity * 0.48) : 0);
+    drawEdgesOnCanvas();
+    return;
+  }
+
+  // Estado global
+  d3.select('#nodes-layer').selectAll('.node-g').style('opacity', d => d.baseOpacity);
+  d3.select('#labels-layer').selectAll('.node-label').style('opacity', d => 0.45 + d.baseOpacity * 0.48);
+  drawEdgesOnCanvas();
+  _currentZoomLevel = -1;
+  const k = zoomInstance ? d3.zoomTransform(d3.select('#viz-svg').node()).k : 1;
+  applySemanticZoom(k);
+}
+function selectNode(d) {
+  highlightNode=d; highlightCluster=null;
+  document.getElementById('btn-reset').style.display='block';
+  document.querySelectorAll('.legend-item').forEach(el=>el.classList.remove('active'));
+  // Inicia o zoom imediatamente (frame do clique fica leve)
+  const W=document.getElementById('canvas-area').clientWidth, H=document.getElementById('canvas-area').clientHeight, k=2.8;
+  d3.select('#viz-svg').transition().duration(320).ease(d3.easeCubicOut)
+    .call(zoomInstance.transform, d3.zoomIdentity.translate(W/2-k*d.x, H/2-k*d.y).scale(k))
+    .on('end', () => { showRipple(d); showRightPanel(d); }); // painel pesado só após zoom
+  // Defer: hover + card leve (sem painel direito) para o próximo frame
+  requestAnimationFrame(() => { applyHover(d); showNodeCard(d); });
+}
+function selectCluster(mc) {
+  highlightCluster=mc; highlightNode=null; hideNodeCard();
+  const clIds=new Set(currentNodes.filter(n=>n.modClass===mc).map(n=>n.id));
+  const clNodes=currentNodes.filter(n=>n.modClass===mc);
+
+  // Nós: cluster em destaque, resto esmaecido
+  d3.select('#nodes-layer').selectAll('.node-g').style('opacity', n=>clIds.has(n.id)?1:0.06);
+
+  // Canvas: define estado do cluster e redesenha
+  _clusterNodeIds = clIds;
+  _hoverEdgeSet = null;
+  drawEdgesOnCanvas();
+
+  // Hulls
+  d3.select('#hulls-layer').style('display', null);
+  d3.select('#hulls-layer').selectAll('.hull-path')
+    .attr('fill-opacity', d=>d.mc===mc?0.09:0.01).attr('stroke-opacity', d=>d.mc===mc?0.35:0.04);
+
+  // Labels: todos os nós do cluster, com opacidade por importância
+  d3.select('#labels-layer').selectAll('.node-label')
+    .style('display', d => clIds.has(d.id) ? null : 'none')
+    .style('opacity', d => clIds.has(d.id) ? Math.max(0.75, 0.45 + d.baseOpacity * 0.48) : 0);
+
+  document.querySelectorAll('.legend-item').forEach(el=>el.classList.toggle('active',el.dataset.mc===mc));
+  document.getElementById('btn-reset').style.display='block';
+  showClusterStats(mc);
+
+  // Zoom para enquadrar o cluster inteiro com padding
+  const xs=clNodes.map(n=>n.x), ys=clNodes.map(n=>n.y);
+  const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const W=document.getElementById('canvas-area').clientWidth, H=document.getElementById('canvas-area').clientHeight;
+  const pad=90;
+  const k=Math.min(W/(x1-x0+pad*2), H/(y1-y0+pad*2), 3.5);
+  const cx=(x0+x1)/2, cy=(y0+y1)/2;
+  d3.select('#viz-svg').transition().duration(280)
+    .call(zoomInstance.transform, d3.zoomIdentity.translate(W/2-k*cx, H/2-k*cy).scale(k));
+}
+function resetHighlight() {
+  highlightNode=null; highlightCluster=null;
+  _hoverEdgeSet=null; _clusterNodeIds=null;
+  clearHover(); hideNodeCard(); hideTooltip();
+  d3.select('#hulls-layer').style('display','none');
+  document.querySelectorAll('.legend-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('cluster-stats').style.display='none';
+  document.getElementById('btn-reset').style.display='none';
+  d3.select('#viz-svg').transition().duration(220).call(zoomInstance.transform, d3.zoomIdentity);
+}
+
+// ═══════════════════════════════════════════════════════
+// RIPPLE / TOOLTIP / NODE CARD
+// ═══════════════════════════════════════════════════════
+function showRipple(d) {
+  const ripple=d3.select('#ripples-layer').append('circle')
+    .attr('cx',d.x).attr('cy',d.y).attr('r',d.size).attr('fill','none')
+    .attr('stroke',d.clusterColor).attr('stroke-width',2).attr('opacity',0.8);
+  ripple.transition().duration(800).ease(d3.easeCubicOut).attr('r',40).attr('opacity',0).remove();
+}
+function showTooltip(event,d) {
+  document.getElementById('tt-name').textContent=d.label;
+  document.getElementById('tt-cluster').textContent=d.clusterName;
+  document.getElementById('tt-stats').innerHTML=
+    '<span>'+d.degree+' conexões</span>';
+
+  // Top 3 co-citados por peso de aresta
+  const myEdges = nodeEdgeEls.get(d.id) || [];
+  const top3 = myEdges
+    .map(e => {
+      const sid=typeof e.source==='object'?e.source.id:e.source;
+      const tid=typeof e.target==='object'?e.target.id:e.target;
+      const nb=nodeById.get(sid===d.id?tid:sid);
+      return nb ? {nb, w:e.weight||1} : null;
+    })
+    .filter(Boolean)
+    .sort((a,b)=>b.w-a.w)
+    .slice(0,3);
+
+  let nbHtml='';
+  if(top3.length){
+    nbHtml='<div class="tt-nb-label">Principais co-citações</div>';
+    top3.forEach(({nb,w})=>{
+      nbHtml+=`<div class="tt-nb-item">
+        <div class="tt-nb-dot" style="background:${nb.clusterColor}"></div>
+        <span class="tt-nb-name">${nb.label}</span>
+        <span class="tt-nb-w">${w}×</span>
+      </div>`;
+    });
+  }
+  document.getElementById('tt-neighbors').innerHTML=nbHtml;
+  document.getElementById('tooltip').classList.add('visible');
+  positionTooltip(event);
+}
+function positionTooltip(event) {
+  const tt=document.getElementById('tooltip');
+  tt.style.left=Math.min(event.clientX+14, window.innerWidth-tt.offsetWidth-8)+'px';
+  tt.style.top=Math.min(event.clientY-10, window.innerHeight-tt.offsetHeight-8)+'px';
+}
+function hideTooltip() { document.getElementById('tooltip').classList.remove('visible'); }
+
+function showNodeCard(d) {
+  document.getElementById('node-card').style.display='block';
+  const color=d.clusterColor;
+
+  // ── Card flutuante para modo apresentação ──
+  if (_presentMode) {
+    const pc = document.getElementById('present-card');
+
+    // Cluster tag
+    const tag = document.getElementById('pc-tag');
+    tag.textContent = d.clusterName;
+    tag.style.background = color+'22'; tag.style.color = color; tag.style.border = '1px solid '+color+'44';
+
+    // Nome abreviado (label do GEXF)
+    document.getElementById('pc-name').textContent = d.label;
+
+    // Nome completo do authorNamesDB, se disponível
+    const pcFullEl = document.getElementById('pc-fullname');
+    const pcFullName = lookupFullName(d.label);
+    if (pcFullName) {
+      pcFullEl.textContent = pcFullName;
+      pcFullEl.style.display = '';
+    } else {
+      pcFullEl.style.display = 'none';
+    }
+
+    // Stats: grau, citações, % da rede
+    document.getElementById('pc-degree').textContent = d.degree;
+    document.getElementById('pc-cit').textContent = d.citations || 0;
+    document.getElementById('pc-pct').textContent =
+      ((d.degree / Math.max(currentEdges.length, 1)) * 100).toFixed(1) + '%';
+
+    // Neighbor chips — top 6 por grau, clicáveis
+    const pcNbIds = [...(neighborMap.get(d.id) || [])];
+    const pcTopNbs = pcNbIds
+      .map(id => currentNodes.find(n => n.id === id))
+      .filter(Boolean)
+      .sort((a, b) => b.degree - a.degree)
+      .slice(0, 6);
+    const pcNbEl = document.getElementById('pc-neighbors');
+    pcNbEl.innerHTML = '';
+    pcTopNbs.forEach(nb => {
+      const chip = document.createElement('span');
+      chip.className = 'pc-chip';
+      chip.textContent = nb.label;
+      chip.style.borderColor = nb.clusterColor + '55';
+      chip.addEventListener('click', () => selectNode(nb));
+      pcNbEl.appendChild(chip);
+    });
+
+    pc.classList.add('visible');
+  }
+  const tag=document.getElementById('card-tag');
+  tag.textContent=d.clusterName; tag.style.background=color+'22'; tag.style.color=color; tag.style.border='1px solid '+color+'44';
+  document.getElementById('card-name').textContent=d.label;
+  document.getElementById('card-degree').textContent=d.degree;
+  document.getElementById('card-pct').textContent=((d.degree/Math.max(currentEdges.length,1))*100).toFixed(1)+'%';
+  const nbIds=[...(neighborMap.get(d.id)||[])];
+  const topNbs=nbIds.map(id=>currentNodes.find(n=>n.id===id)).filter(Boolean).sort((a,b)=>b.degree-a.degree).slice(0,6);
+  const container=document.getElementById('card-neighbors'); container.innerHTML='';
+  topNbs.forEach(nb => {
+    const chip=document.createElement('span'); chip.className='neighbor-chip'; chip.textContent=nb.label;
+    chip.addEventListener('click',()=>selectNode(nb)); container.appendChild(chip);
+  });
+
+}
+
+function showRightPanel(d) {
+  const color = d.clusterColor;
+  const authorKey = normalizeAuthorKey(d.label);
+  const fullName = lookupFullName(d.label);
+  const authorEl = document.getElementById('rp-author');
+  if (fullName) {
+    // Nome completo em destaque + abreviação do corpus como subtítulo
+    authorEl.innerHTML =
+      fullName +
+      `<span style="display:block;font-size:11px;font-weight:400;color:rgba(255,255,255,0.35);margin-top:4px;font-family:'Space Mono',monospace;letter-spacing:.05em">${d.label}</span>`;
+  } else {
+    authorEl.textContent = d.label;
+  }
+  const tag = document.getElementById('rp-cluster-tag');
+  tag.textContent = d.clusterName;
+  tag.style.background = color + '22';
+  tag.style.color = color;
+  tag.style.border = '1px solid ' + color + '44';
+  const _totalCit = d.citations || d.degree || 0;
+  document.getElementById('rp-stat').textContent =
+    _totalCit.toLocaleString('pt-BR') + ' citações no corpus';
+
+  const papersEl = document.getElementById('rp-papers');
+  papersEl.innerHTML = '';
+  const rawPapers = referencesDB[authorKey] || [];
+
+  // Deduplica edições diferentes do mesmo livro/artigo
+  // Usa as 2 primeiras palavras significativas (>3 chars) como chave
+  function deduplicatePapers(list) {
+    function normKey(p) {
+      const raw = p.title || p.source || p.journal || '';
+      const words = raw.normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')   // remove acentos
+        .toLowerCase()
+        .replace(/[-\u2013\u2014]/g, '')             // remove h\u00edfens ("afro-latino" = "afrolatino")
+        .replace(/\b(1st|2nd|3rd|\d+th|ed|edition|vol|volume|rev|org|eds)\b/g, '')
+        .split(/[^a-z0-9]+/)
+        .filter(w => w.length > 3);
+      const key = words.slice(0, 3).join(' ');  // 3 palavras \u2192 menos falsos positivos
+      return key || ('_' + raw.slice(0, 10));
+    }
+    function mergeBest(grp) {
+      grp.sort((a, b) => {
+        const ha = a.title ? 1 : 0, hb = b.title ? 1 : 0;
+        if (ha !== hb) return hb - ha;
+        return (b.title || b.source || '').length - (a.title || a.source || '').length;
+      });
+      const best = { ...grp[0] };
+      const years = grp.map(p => parseInt(p.year)).filter(y => y > 999);
+      if (years.length) best.year = String(Math.min(...years));
+      best.count = grp.reduce((s, p) => s + (p.count || 1), 0);
+      return best;
+    }
+
+    // Passo 1: deduplicar por chave de titulo (mesma obra, titulo similar)
+    // Se dois itens têm DOIs diferentes, são obras distintas — nunca mesclar
+    const titleGroups = new Map();
+    list.forEach(p => {
+      const k = p.doi ? ('doi:' + p.doi) : normKey(p);
+      if (!titleGroups.has(k)) titleGroups.set(k, []);
+      titleGroups.get(k).push(p);
+    });
+    const afterPass1 = [];
+    titleGroups.forEach(grp => afterPass1.push(grp.length === 1 ? grp[0] : mergeBest(grp)));
+
+    return afterPass1.sort((a, b) => (b.count || 0) - (a.count || 0));
+  }
+
+  // Detecta abreviações de revista uppercase do WoS (ex: "REV CIENCIAS SOCIAI")
+  // Critério: sem título, source em caixa alta, sem letras minúsculas
+  const isJournalAbbrev = src =>
+    src && !src.match(/[a-z]/) && src === src.toUpperCase() && src.length < 60;
+
+  const papers = deduplicatePapers(rawPapers).filter(p => {
+    if (p.title) return true;                        // tem título real → mantém
+    const src = p.source || p.journal || '';
+    if (isJournalAbbrev(src)) return false;          // só abreviação uppercase → descarta
+    return src.trim().length > 0;                    // source misto (livro) → mantém
+  });
+
+  if (papers.length === 0) {
+    papersEl.innerHTML = '<div class="rp-empty">Nenhum texto encontrado<br>no references.json</div>';
+  } else {
+    const MAX_PAPERS = 5;
+    papers.slice(0, MAX_PAPERS).forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'rp-paper';
+
+      // Valores seguros — nunca mostra "undefined" ou "null"
+      const safeStr = v => (v && typeof v === 'string' && v !== 'null' && v !== 'undefined') ? v : null;
+      const title  = safeStr(p.title);
+      const source = safeStr(p.source) || safeStr(p.journal);
+      const year   = safeStr(p.year) || '';
+
+      // Não repete source quando é igual ao título (livros com source copiado para title)
+      const displaySource = (source && source.trim() !== title?.trim()) ? source : null;
+      const titleHtml = title
+        ? `<div class="rp-paper-journal">${title}</div>`+
+          `<div class="rp-paper-source">${displaySource ? displaySource + ' · ' : ''}${year}</div>`
+        : `<div class="rp-paper-journal rp-paper-journal--source">${source || '—'}</div>`+
+          `<div class="rp-paper-source">${year}</div>`;
+
+      // Botão de acesso: detecta tipo de link para label adequado
+      const doiVal = safeStr(p.doi);
+      const doiHref = doiVal
+        ? (doiVal.startsWith('http') ? doiVal : `https://doi.org/${doiVal}`)
+        : null;
+      function linkLabel(href, rawDoi) {
+        if (!href) return null;
+        // DOI direto (ex: 10.1080/...) → artigo científico
+        if (rawDoi && !rawDoi.startsWith('http')) return '↗ Abrir DOI';
+        // Vídeo
+        if (href.includes('youtube.com') || href.includes('youtu.be') || href.includes('vimeo.com'))
+          return '▶ Assistir';
+        // Livros
+        if (href.includes('openlibrary.org') ||
+            href.includes('books.google') ||
+            (href.includes('google.') && href.includes('/books/')) ||
+            href.includes('books.scielo.org') ||
+            href.includes('amazon.'))
+          return '📖 Ver livro';
+        // Verbete / enciclopédia
+        if (href.includes('enciclopedia') || href.includes('pucsp') || href.includes('wikipedia.org'))
+          return '↗ Ver verbete';
+        // Teses e dissertações
+        if (href.includes('teses.usp') || href.includes('bdtd.ibict') ||
+            href.includes('repositorio.unb') || href.includes('dspace.'))
+          return '📄 Ver tese';
+        // Artigos em periódicos / bases científicas
+        if (href.includes('doi.org') || href.includes('jstor.org') ||
+            href.includes('scielo.') || href.includes('pubmed.') ||
+            href.includes('springer.com') || href.includes('redalyc.org') ||
+            href.includes('periodicos.') || href.includes('revistas.') ||
+            href.includes('openedition.org') || href.includes('journals.') ||
+            href.includes('semanticscholar.org') || href.includes('proquest.com'))
+          return '↗ Abrir DOI';
+        return '↗ Abrir link';
+      }
+      const btnLabel = linkLabel(doiHref, doiVal);
+      const doiBtn = btnLabel
+        ? `<a class="rp-doi-btn has-doi" href="${doiHref}" target="_blank" rel="noopener">${btnLabel}</a>`
+        : (title || source)
+          ? `<span class="rp-doi-btn book-badge">📖 livro / capítulo</span>`
+          : `<span class="rp-doi-btn no-doi">sem dados</span>`;
+
+      item.innerHTML =
+        titleHtml+
+        `<div class="rp-paper-footer">`+
+          `<span class="rp-paper-count">citado ${p.count}× no corpus</span>`+
+          doiBtn+
+        `</div>`;
+      papersEl.appendChild(item);
+    });
+    if (papers.length > MAX_PAPERS) {
+      const more = document.createElement('div');
+      more.className = 'rp-more';
+      more.textContent = '+ ' + (papers.length - MAX_PAPERS) + ' outros textos';
+      papersEl.appendChild(more);
+    }
+  }
+  document.getElementById('right-panel').classList.add('open');
+}
+
+function hideRightPanel() {
+  document.getElementById('right-panel').classList.remove('open');
+}
+function hideNodeCard() {
+  document.getElementById('node-card').style.display='none';
+  document.getElementById('present-card').classList.remove('visible');
+  hideRightPanel();
+}
+
+// ═══════════════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════════════
+function initSearch() {
+  const input=document.getElementById('search-input'), dropdown=document.getElementById('search-dropdown');
+  function normStr(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+  input.addEventListener('input', () => {
+    const q=input.value.trim(); dropdown.innerHTML='';
+    if (!q) { dropdown.classList.remove('open'); return; }
+    const qn=normStr(q);
+    const matches=currentNodes.filter(n=>{
+      if (normStr(n.label).includes(qn)) return true;
+      const full=FULL_NAME_MAP[n.label]||'';
+      return normStr(full).includes(qn);
+    }).sort((a,b)=>b.degree-a.degree).slice(0,8);
+    if (!matches.length) { dropdown.innerHTML='<div class="search-empty">Não encontrado</div>'; }
+    else { matches.forEach(n => {
+      const item=document.createElement('div'); item.className='search-item';
+      const full=FULL_NAME_MAP[n.label];
+      item.innerHTML=n.label+(full?'<span style="color:rgba(255,255,255,0.38);font-size:10px;margin-left:6px">'+full+'</span>':'');
+      item.addEventListener('mousedown',ev=>{ev.preventDefault();input.value='';dropdown.classList.remove('open');selectNode(n);});
+      dropdown.appendChild(item);
+    }); }
+    dropdown.classList.add('open');
+  });
+  input.addEventListener('blur',()=>setTimeout(()=>dropdown.classList.remove('open'),150));
+  input.addEventListener('focus',()=>{ if (input.value.trim()) dropdown.classList.add('open'); });
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT PNG
+// ═══════════════════════════════════════════════════════
+// Canvas resize + cache de dimensões ao redimensionar janela
+window.addEventListener('resize', () => {
+  const ca = document.getElementById('canvas-area');
+  if (ca) { _canvasW = ca.clientWidth; _canvasH = ca.clientHeight; }
+  resizeEdgesCanvas(); drawEdgesOnCanvas();
+});
+
+document.getElementById('btn-reset').addEventListener('click', resetHighlight);
+document.getElementById('btn-center').addEventListener('click', () => {
+  if(zoomInstance) d3.select('#viz-svg').transition().duration(260).call(zoomInstance.transform, d3.zoomIdentity);
+});
+// ── Sidebar auto-ocultável ───────────────────────────────────────────────────
+(function() {
+  const panel     = document.getElementById('panel');
+  const toggle    = document.getElementById('panel-toggle');
+  const hoverZone = document.getElementById('panel-hover-zone');
+  let pinned      = false;
+  let leaveTimer  = null;
+
+  // Começa recolhido
+  panel.classList.add('collapsed');
+
+  function openPanel() {
+    clearTimeout(leaveTimer);
+    pinned = true;
+    panel.classList.remove('collapsed');
+    hoverZone.classList.add('hidden');
+  }
+  function closePanel() {
+    pinned = false;
+    panel.classList.add('collapsed');
+    hoverZone.classList.remove('hidden');
+  }
+
+  // Seta › na borda esquerda → abre o painel
+  hoverZone.addEventListener('mouseenter', openPanel);
+  hoverZone.addEventListener('click', () => { pinned = true; openPanel(); });
+
+  // Hover sobre o toggle → abre
+  toggle.addEventListener('mouseenter', openPanel);
+
+  // Hover sobre o painel → mantém aberto
+  panel.addEventListener('mouseenter', () => { clearTimeout(leaveTimer); panel.classList.remove('collapsed'); });
+
+  // Painel não fecha ao tirar o mouse — só fecha ao clicar no ‹
+
+  // Clique no ‹ → fecha o painel
+  toggle.addEventListener('click', closePanel);
+})();
+document.getElementById('rp-close-btn').addEventListener('click', () => { hideRightPanel(); resetHighlight(); });
+
+// ── Modo apresentação ──
+let _presentMode = false;
+document.getElementById('btn-present').addEventListener('click', () => {
+  _presentMode = !_presentMode;
+  document.body.classList.toggle('present-mode', _presentMode);
+  if (_presentMode) {
+    // Painel colapsa via CSS (body.present-mode #panel{width:0})
+    // Centraliza a rede após a transição do painel (380ms)
+    setTimeout(() => {
+      if (zoomInstance) d3.select('#viz-svg').transition().duration(600)
+        .call(zoomInstance.transform, d3.zoomIdentity);
+    }, 380);
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+  // Redimensiona canvas após a transição completa do painel
+  setTimeout(()=>{ resizeEdgesCanvas(); drawEdgesOnCanvas(); }, 420);
+});
+
+// ═══════════════════════════════════════════════════════
+// LOAD / PROCESS
+// ═══════════════════════════════════════════════════════
+function showApp() { document.getElementById('app').style.display='flex'; initSearch(); }
+
+function processAndRender(xmlText) {
+  document.getElementById('load-screen').style.display='none';
+  document.getElementById('loading-overlay').style.display='flex';
+  setTimeout(() => {
+    try {
+      const { nodes:rawNodes, edges:rawEdges } = parseGEXF(xmlText);
+      const graphData = processGraph(rawNodes, rawEdges);
+      document.getElementById('loading-overlay').style.display='none';
+      showApp();
+      setTimeout(() => buildVisualization(graphData), 60);
+    } catch(err) {
+      document.getElementById('loading-overlay').style.display='none';
+      document.getElementById('load-screen').style.display='flex';
+      showUploadFallback();
+      alert('Erro ao processar o GEXF: '+err.message);
+      console.error(err);
+    }
+  }, 120);
+}
+
+function showUploadFallback() {
+  document.getElementById('splash-loading').style.display='none';
+  document.getElementById('splash-upload').style.display='flex';
+}
+
+const dropZone=document.getElementById('drop-zone'), fileInput=document.getElementById('file-input');
+document.getElementById('browse-link').addEventListener('click',()=>fileInput.click());
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);});
+function loadFile(file) { const r=new FileReader(); r.onload=e=>processAndRender(e.target.result); r.readAsText(file,'UTF-8'); }
+
+(async function autoFetch() {
+  if (location.protocol === 'file:') { showUploadFallback(); return; }
+  const bar=document.getElementById('splash-bar'), txt=document.getElementById('splash-loading-text');
+  bar.style.width='20%';
+  for (const fname of GEXF_CANDIDATES) {
+    try {
+      txt.textContent='Buscando '+fname+'…'; bar.style.width='55%';
+      const resp=await fetch('./'+fname);
+      if (!resp.ok) continue;
+      bar.style.width='85%'; txt.textContent='Processando…';
+      const text=await resp.text();
+      bar.style.width='100%';
+      setTimeout(()=>processAndRender(text), 200);
+      return;
+    } catch(_) { continue; }
+  }
+  showUploadFallback();
+})();
+</script>
+</body>
+</html>
